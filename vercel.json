@@ -1,7 +1,7 @@
 {
     "version": 2,
-    "buildCommand": "cd money-minder && npm install && npx expo export",
-    "outputDirectory": "money-minder/dist",
+    "buildCommand": "npm install && npx expo export",
+    "outputDirectory": "dist",
     "routes": [
       { 
         "src": "/(.*)", 
