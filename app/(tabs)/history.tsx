@@ -1,10 +1,9 @@
 import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, Text } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, Modal } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { ScrollView } from 'react-native-gesture-handler';
-import { ExpenseForm } from '@/components/ExpenseForm';
 import { DailyTotalWidget } from '@/components/DailyTotalWidget';
 import { ExpenseFilters, ExpenseFilterOptions } from '@/components/ExpenseFilters';
 import { ExpenseSortSelector, SortOption } from '@/components/ExpenseSortSelector';
@@ -14,16 +13,17 @@ import { Expense } from '@/types/expenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { IconSymbol } from '@/components/ui/IconSymbol';
-import { formatCurrentDate } from '@/utils/formatters';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
-export default function HomeScreen() {
+export default function HistoryScreen() {
   const {
     expenses,
     loading,
     error,
-    addExpense,
     loadExpenses,
     deleteExpense,
+    selectedDate,
+    changeSelectedDate,
     sortOption,
     changeSortOption,
     filterOptions,
@@ -32,7 +32,7 @@ export default function HomeScreen() {
   } = useExpenses();
   
   const [refreshing, setRefreshing] = useState(false);
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
@@ -40,7 +40,7 @@ export default function HomeScreen() {
   // Обновляем данные каждый раз при фокусе на странице
   useFocusEffect(
     useCallback(() => {
-      console.log('Главная: обновление данных при фокусе');
+      console.log('История: обновление данных при фокусе');
       loadExpenses();
       return () => {
         // Функция очистки, если потребуется
@@ -55,18 +55,17 @@ export default function HomeScreen() {
     setRefreshing(false);
   };
   
-  // Обработчик добавления нового расхода
-  const handleAddExpense = async (expenseData: Omit<Expense, 'id' | 'timestamp'>) => {
-    const success = await addExpense(expenseData);
-    if (success) {
-      setShowExpenseForm(false);
-    }
-    return success;
-  };
-  
   // Обработчик удаления расхода
   const handleDeleteExpense = async (expense: Expense) => {
     await deleteExpense(expense.id);
+  };
+  
+  // Обработчик изменения даты
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    setShowDatePicker(false);
+    if (selectedDate) {
+      changeSelectedDate(selectedDate);
+    }
   };
   
   // Обработчик изменения фильтров
@@ -84,14 +83,24 @@ export default function HomeScreen() {
     changeSortOption(option);
   };
   
+  // Форматирование даты для отображения
+  const formatDate = (date: Date) => {
+    const options: Intl.DateTimeFormatOptions = {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    };
+    return date.toLocaleDateString('ru-RU', options);
+  };
+  
   return (
     <View style={styles.container}>
       <ThemedView style={styles.header}>
         <ThemedText type="title" style={styles.headerTitle}>
-          Расходы на сегодня
+          История расходов
         </ThemedText>
         <ThemedText style={styles.headerSubtitle}>
-          {formatCurrentDate()}
+          Просмотр всех ваших расходов
         </ThemedText>
       </ThemedView>
       
@@ -119,33 +128,32 @@ export default function HomeScreen() {
             </ThemedView>
           )}
           
-          {/* Виджет с общей суммой расходов за сегодня */}
-          <DailyTotalWidget totalAmount={getDailyTotal()} />
+          {/* Виджет с общей суммой расходов за выбранный день */}
+          <DailyTotalWidget 
+            totalAmount={getDailyTotal()} 
+            date={selectedDate} 
+          />
           
-          {/* Форма добавления расхода */}
-          {showExpenseForm ? (
-            <ThemedView style={styles.formContainer}>
-              <View style={styles.formHeader}>
-                <ThemedText type="subtitle">Добавить расход</ThemedText>
-                <TouchableOpacity 
-                  onPress={() => setShowExpenseForm(false)}
-                  style={styles.closeButton}
-                >
-                  <IconSymbol name="xmark.circle.fill" size={24} color={themeColors.tint} />
-                </TouchableOpacity>
-              </View>
-              <ExpenseForm onSubmit={handleAddExpense} />
-            </ThemedView>
-          ) : (
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: themeColors.tint }]}
-              onPress={() => setShowExpenseForm(true)}
-            >
-              <IconSymbol name="plus" size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />
-              <ThemedText style={[styles.addButtonText, { color: colorScheme === 'dark' ? 'black' : 'white' }]}>
-                Добавить расход
-              </ThemedText>
-            </TouchableOpacity>
+          {/* Выбор даты */}
+          <TouchableOpacity
+            style={styles.datePickerButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <IconSymbol name="calendar" size={20} color={themeColors.tint} />
+            <ThemedText style={styles.datePickerText}>
+              {formatDate(selectedDate)}
+            </ThemedText>
+            <IconSymbol name="chevron.down" size={16} color={themeColors.tint} />
+          </TouchableOpacity>
+          
+          {showDatePicker && (
+            <DateTimePicker
+              testID="dateTimePicker"
+              value={selectedDate}
+              mode={'date'}
+              display="default"
+              onChange={handleDateChange}
+            />
           )}
           
           {/* Блок с сортировкой и фильтрацией */}
@@ -174,8 +182,16 @@ export default function HomeScreen() {
           {expenses.length === 0 && (
             <ThemedView style={styles.emptyStateContainer}>
               <ThemedText style={styles.emptyStateText}>
-                Нет расходов за сегодня. Добавьте расход, нажав на кнопку выше.
+                Нет расходов за выбранную дату
               </ThemedText>
+              <TouchableOpacity
+                style={[styles.emptyStateButton, { borderColor: themeColors.tint }]}
+                onPress={() => changeSelectedDate(new Date())}
+              >
+                <ThemedText style={{ color: themeColors.tint }}>
+                  Вернуться к сегодняшней дате
+                </ThemedText>
+              </TouchableOpacity>
             </ThemedView>
           )}
         </ScrollView>
@@ -226,33 +242,20 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
   },
-  addButton: {
+  datePickerButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 14,
+    backgroundColor: 'rgba(150, 150, 150, 0.1)',
+    padding: 12,
     borderRadius: 8,
     marginBottom: 16,
   },
-  addButtonText: {
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  formContainer: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  formHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  closeButton: {
-    padding: 4,
+  datePickerText: {
+    flex: 1,
+    marginHorizontal: 8,
+    fontSize: 16,
   },
   filtersContainer: {
     flexDirection: 'row',
@@ -271,6 +274,12 @@ const styles = StyleSheet.create({
   },
   emptyStateText: {
     textAlign: 'center',
+    marginBottom: 16,
     opacity: 0.7,
   },
-});
+  emptyStateButton: {
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+}); 
