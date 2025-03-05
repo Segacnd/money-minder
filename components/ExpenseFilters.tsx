@@ -6,6 +6,8 @@ import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { ExpenseService } from '@/services/ExpenseService';
+import { predefinedCategories } from '@/constants/Categories';
 
 // Категории расходов
 const EXPENSE_CATEGORIES = [
@@ -38,9 +40,29 @@ export function ExpenseFilters({ onApplyFilters, onResetFilters, activeFilters }
   const [minAmount, setMinAmount] = useState<string>(activeFilters.minAmount?.toString() || '');
   const [maxAmount, setMaxAmount] = useState<string>(activeFilters.maxAmount?.toString() || '');
   const [modalVisible, setModalVisible] = useState(false);
+  const [allCategories, setAllCategories] = useState<string[]>(EXPENSE_CATEGORIES);
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
+  
+  // Загрузка всех категорий, включая пользовательские
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const expenses = await ExpenseService.getExpenses();
+        const userCategories = Array.from(new Set(expenses.map(expense => expense.category)));
+        const predefinedNames = predefinedCategories.map(cat => cat.name);
+        
+        // Объединяем предопределенные и пользовательские категории
+        const uniqueCategories = Array.from(new Set([...predefinedNames, ...userCategories]));
+        setAllCategories(uniqueCategories);
+      } catch (error) {
+        console.error('Ошибка при загрузке категорий:', error);
+      }
+    };
+    
+    loadCategories();
+  }, []);
   
   // Открытие модального окна
   const openModal = useCallback(() => {
@@ -158,23 +180,33 @@ export function ExpenseFilters({ onApplyFilters, onResetFilters, activeFilters }
                 Категория
               </ThemedText>
               <View style={styles.categoriesContainer}>
-                {EXPENSE_CATEGORIES.map(cat => (
-                  <TouchableOpacity
-                    key={cat}
-                    style={[
-                      styles.categoryButton,
-                      isCategorySelected(cat) && { backgroundColor: `${themeColors.tint}20` }
-                    ]}
-                    onPress={() => setCategory(isCategorySelected(cat) ? undefined : cat)}
-                  >
-                    <ThemedText style={[
-                      styles.categoryText,
-                      isCategorySelected(cat) && { color: themeColors.tint, fontWeight: 'bold' }
-                    ]}>
-                      {cat}
-                    </ThemedText>
-                  </TouchableOpacity>
-                ))}
+                {allCategories.map(cat => {
+                  const predefinedCategory = predefinedCategories.find(pc => pc.name === cat);
+                  return (
+                    <TouchableOpacity
+                      key={cat}
+                      style={[
+                        styles.categoryButton,
+                        isCategorySelected(cat) && { backgroundColor: `${themeColors.tint}20` }
+                      ]}
+                      onPress={() => setCategory(isCategorySelected(cat) ? undefined : cat)}
+                    >
+                      <View style={styles.categoryContent}>
+                        <IconSymbol
+                          name={predefinedCategory?.icon || 'tag'}
+                          size={16}
+                          color={predefinedCategory?.color || themeColors.tint}
+                        />
+                        <ThemedText style={[
+                          styles.categoryText,
+                          isCategorySelected(cat) && { color: themeColors.tint, fontWeight: 'bold' }
+                        ]}>
+                          {cat}
+                        </ThemedText>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
               
               <ThemedText style={styles.sectionTitle}>
@@ -350,5 +382,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'white',
     fontWeight: 'bold',
+  },
+  categoryContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
 }); 

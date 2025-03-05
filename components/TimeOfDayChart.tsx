@@ -113,7 +113,7 @@ export const TimeOfDayChart: React.FC<TimeOfDayChartProps> = ({
           <View key={index} style={styles.legendItem}>
             <View style={[styles.legendColor, { backgroundColor: item.color }]} />
             <ThemedText>
-              {item.name}: {Math.round((item.amount / total) * 100)}% ({item.amount.toFixed(2)} ₽)
+              {item.name}: {Math.round((item.amount / total) * 100)}% ({item.amount.toFixed(2)} BYN)
             </ThemedText>
           </View>
         ))}

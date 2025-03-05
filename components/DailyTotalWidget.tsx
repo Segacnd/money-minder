@@ -36,22 +36,12 @@ export function DailyTotalWidget({ totalAmount, date = new Date() }: DailyTotalW
   
   return (
     <ThemedView style={[styles.container, { borderColor: themeColors.tint + '30' }]}>
-      <View style={styles.header}>
-        <ThemedText style={styles.dateText}>
-          {formatDate(date)}
-        </ThemedText>
+      <View style={[styles.header, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }]}>
+        <ThemedText style={styles.dateText}>{formatDate(date)}</ThemedText>
+        <ThemedText style={[styles.amount, { color: themeColors.tint, marginTop: 2 }]}>{formatCurrency(totalAmount)}</ThemedText>
       </View>
       
-      <View style={styles.content}>
-        <ThemedText style={styles.label}>
-          Общая сумма расходов:
-        </ThemedText>
-        <ThemedText 
-          style={[styles.amount, { color: themeColors.tint }]}
-        >
-          {formatCurrency(totalAmount)}
-        </ThemedText>
-      </View>
+      
     </ThemedView>
   );
 }

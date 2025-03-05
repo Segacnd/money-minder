@@ -1,19 +1,21 @@
 import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import { StyleSheet, View, Dimensions } from 'react-native';
 import { BarChart } from 'react-native-chart-kit';
 import { ThemedText } from './ThemedText';
-import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import { Expense } from '@/types/expenses';
 
 interface MonthlyExpensesChartProps {
   expenses: Expense[];
-  year: number;
+  startDate: Date;
+  endDate: Date;
 }
 
 export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
   expenses,
-  year,
+  startDate,
+  endDate,
 }) => {
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
@@ -24,34 +26,50 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
     'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'
   ];
   
-  // Расчет расходов по месяцам для выбранного года
+  // Расчет расходов по месяцам для выбранного периода
   const calculateMonthlyExpenses = () => {
-    // Создаем массив с нулевыми значениями для каждого месяца
-    const monthlyTotals = Array(12).fill(0);
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth();
     
-    // Суммируем расходы по месяцам
+    // Создаем массив с тремя месяцами: предыдущий, текущий и следующий
+    const monthlyTotals = Array(3).fill(0);
+    const monthLabels = Array(3).fill('');
+    
+    // Определяем индексы месяцев
+    const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+    
+    // Устанавливаем метки месяцев
+    monthLabels[0] = months[prevMonth];
+    monthLabels[1] = months[currentMonth];
+    monthLabels[2] = months[nextMonth];
+    
+    // Фильтруем расходы по выбранному периоду и суммируем по месяцам
     expenses.forEach(expense => {
       const expenseDate = new Date(expense.timestamp);
-      const expenseYear = expenseDate.getFullYear();
       const expenseMonth = expenseDate.getMonth();
       
-      if (expenseYear === year) {
-        monthlyTotals[expenseMonth] += expense.amount;
+      if (expenseMonth === prevMonth) {
+        monthlyTotals[0] += expense.amount;
+      } else if (expenseMonth === currentMonth) {
+        monthlyTotals[1] += expense.amount;
+      } else if (expenseMonth === nextMonth) {
+        monthlyTotals[2] += expense.amount;
       }
     });
     
-    return monthlyTotals;
+    return { monthlyTotals, monthLabels };
   };
   
-  const monthlyExpenses = calculateMonthlyExpenses();
-  const hasData = monthlyExpenses.some(amount => amount > 0);
+  const { monthlyTotals, monthLabels } = calculateMonthlyExpenses();
+  const hasData = monthlyTotals.some(amount => amount > 0);
   
   // Проверяем, есть ли данные для отображения
   if (!hasData) {
     return (
       <View style={styles.container}>
         <ThemedText style={styles.noDataText}>
-          Нет данных о расходах за {year} год
+          Нет данных о расходах за выбранный период
         </ThemedText>
       </View>
     );
@@ -59,10 +77,10 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
   
   // Подготавливаем данные для гистограммы
   const chartData = {
-    labels: months,
+    labels: monthLabels,
     datasets: [
       {
-        data: monthlyExpenses,
+        data: monthlyTotals,
         color: (opacity = 1) => `rgba(71, 148, 235, ${opacity})`
       },
     ],
@@ -75,20 +93,20 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
   return (
     <View style={styles.container}>
       <ThemedText type="subtitle" style={styles.title}>
-        Расходы по месяцам ({year})
+        Расходы по месяцам
       </ThemedText>
       
-      <View style={[styles.chartContainer, {backgroundColor: colorScheme === 'dark' ? '#222' : '#f5f5f5'}]}>
+      <View style={styles.chartWrapper}>
         <BarChart
           data={chartData}
-          width={Dimensions.get('window').width - 40}
+          width={Dimensions.get('window').width - 32}
           height={220}
           yAxisLabel=""
-          yAxisSuffix=" ₽"
+          yAxisSuffix=" BYN"
           chartConfig={{
-            backgroundColor: backgroundColor,
-            backgroundGradientFrom: backgroundColor,
-            backgroundGradientTo: backgroundColor,
+            backgroundColor: 'transparent',
+            backgroundGradientFrom: 'transparent',
+            backgroundGradientTo: 'transparent',
             decimalPlaces: 0,
             color: (opacity = 1) => `rgba(71, 148, 235, ${opacity})`,
             labelColor: (opacity = 1) => `rgba(${colorScheme === 'dark' ? '255, 255, 255' : '0, 0, 0'}, ${opacity})`,
@@ -100,18 +118,19 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
               fill: textColor,
             },
             propsForBackgroundLines: {
-              stroke: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)',
+              stroke: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
             }
           }}
-          style={styles.chart}
+          style={[
+            styles.chart
+          ]}
           showValuesOnTopOfBars={true}
           fromZero
         />
       </View>
       
-      {/* Показываем итоговую сумму за год */}
       <ThemedText style={styles.totalText}>
-        Всего за {year} год: {monthlyExpenses.reduce((sum, amount) => sum + amount, 0).toFixed(2)} ₽
+        Всего за период: {monthlyTotals.reduce((sum, amount) => sum + amount, 0).toFixed(2)} BYN
       </ThemedText>
     </View>
   );
@@ -119,30 +138,37 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 16,
+    width: '100%',
     alignItems: 'center',
   },
   title: {
     marginBottom: 16,
     textAlign: 'center',
+    paddingHorizontal: 16,
+    width: '100%',
   },
-  chartContainer: {
-    borderRadius: 16,
-    padding: 8,
-    marginVertical: 8,
+  chartWrapper: {
+    width: '100%',
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chart: {
     marginVertical: 8,
     borderRadius: 16,
   },
   noDataText: {
-    marginVertical: 30,
     textAlign: 'center',
+    marginVertical: 20,
     opacity: 0.7,
-    fontStyle: 'italic',
+    paddingHorizontal: 16,
+    width: '100%',
   },
   totalText: {
-    marginTop: 16,
-    fontWeight: 'bold',
+    textAlign: 'center',
+    marginTop: 8,
+    opacity: 0.7,
+    paddingHorizontal: 16,
+    width: '100%',
   },
 }); 

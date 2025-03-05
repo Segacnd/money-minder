@@ -66,11 +66,22 @@ export function useExpenses() {
   
   // Состояния для сортировки и фильтрации
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [sortOption, setSortOption] = useState<SortOption>(SortOption.NEWEST);
+  const [dateRange, setDateRange] = useState<{ startDate: Date; endDate: Date }>(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setMonth(start.getMonth() - 1);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(23, 59, 59, 999);
+    return {
+      startDate: start,
+      endDate: end
+    };
+  });
+  const [sortOption, setSortOption] = useState<SortOption>('date-desc');
   const [filterOptions, setFilterOptions] = useState<ExpenseFilterOptions>({});
   
   // Загрузка всех расходов
-  const loadExpenses = useCallback(async () => {
+  const loadExpenses = useCallback(async (showOnlyToday: boolean = false) => {
     try {
       setLoading(true);
       const loadedExpenses = await ExpenseService.getExpenses();
@@ -78,39 +89,82 @@ export function useExpenses() {
       setError(null);
       
       // Обновляем отображаемые расходы с учетом текущих фильтров и сортировки
-      updateDisplayedExpenses(loadedExpenses, selectedDate, sortOption, filterOptions);
+      updateDisplayedExpenses(loadedExpenses, selectedDate, sortOption, {
+        ...filterOptions,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate
+      }, showOnlyToday);
     } catch (err) {
       console.error('Ошибка при загрузке расходов:', err);
       setError('Не удалось загрузить расходы');
     } finally {
       setLoading(false);
     }
-  }, [selectedDate, sortOption, filterOptions]);
+  }, [selectedDate, sortOption, filterOptions, dateRange]);
   
   // Обновление отображаемых расходов с учетом фильтров и сортировки
   const updateDisplayedExpenses = useCallback((
     expenses: Expense[],
     date: Date,
     sort: SortOption,
-    filters: ExpenseFilterOptions
+    filters: ExpenseFilterOptions,
+    showOnlyToday: boolean = false
   ) => {
-    // Фильтруем расходы по дате
-    let filtered = expenses;
-    if (date) {
-      filtered = expenses.filter(expense => isDateEqual(expense.timestamp, date));
+    let filtered = [...expenses];
+
+    // Фильтрация по дате
+    if (showOnlyToday) {
+      // Для главной страницы - только сегодняшние расходы
+      filtered = filtered.filter(expense => {
+        const expenseDate = new Date(expense.timestamp);
+        return (
+          expenseDate.getDate() === date.getDate() &&
+          expenseDate.getMonth() === date.getMonth() &&
+          expenseDate.getFullYear() === date.getFullYear()
+        );
+      });
+    } else if (filters.startDate && filters.endDate) {
+      // Для истории - фильтрация по периоду, если он указан
+      filtered = filtered.filter(expense => {
+        const expenseDate = new Date(expense.timestamp);
+        return expenseDate >= filters.startDate! && expenseDate <= filters.endDate!;
+      });
     }
+
+    // Фильтрация по категории
+    if (filters.category) {
+      filtered = filtered.filter(expense => expense.category === filters.category);
+    }
+
+    // Фильтрация по сумме
+    if (filters.minAmount !== undefined) {
+      filtered = filtered.filter(expense => expense.amount >= filters.minAmount!);
+    }
+    if (filters.maxAmount !== undefined) {
+      filtered = filtered.filter(expense => expense.amount <= filters.maxAmount!);
+    }
+
+    // Сортировка
+    filtered.sort((a, b) => {
+      switch (sort) {
+        case 'date-desc':
+          return b.timestamp - a.timestamp;
+        case 'date-asc':
+          return a.timestamp - b.timestamp;
+        case 'amount-desc':
+          return b.amount - a.amount;
+        case 'amount-asc':
+          return a.amount - b.amount;
+        default:
+          return 0;
+      }
+    });
     
-    // Применяем фильтры
-    filtered = applyFilters(filtered, filters);
-    
-    // Применяем сортировку
-    const sorted = sortExpenses(filtered, sort);
-    
-    setDisplayedExpenses(sorted);
+    setDisplayedExpenses(filtered);
   }, []);
   
   // Добавление нового расхода
-  const addExpense = useCallback(async (expenseData: Omit<Expense, 'id' | 'timestamp'>) => {
+  const addExpense = useCallback(async (expenseData: Omit<Expense, 'id' | 'timestamp'>, showOnlyToday: boolean = false) => {
     try {
       setLoading(true);
       // Добавляем текущую временную метку
@@ -124,7 +178,7 @@ export function useExpenses() {
       setAllExpenses(updatedExpenses);
       
       // Обновляем отображаемые расходы
-      updateDisplayedExpenses(updatedExpenses, selectedDate, sortOption, filterOptions);
+      updateDisplayedExpenses(updatedExpenses, selectedDate, sortOption, filterOptions, showOnlyToday);
       
       return true;
     } catch (err) {
@@ -137,7 +191,7 @@ export function useExpenses() {
   }, [allExpenses, selectedDate, sortOption, filterOptions, updateDisplayedExpenses]);
   
   // Удаление расхода
-  const deleteExpense = useCallback(async (id: string) => {
+  const deleteExpense = useCallback(async (id: string, showOnlyToday: boolean = false) => {
     try {
       setLoading(true);
       await ExpenseService.deleteExpense(id);
@@ -147,7 +201,7 @@ export function useExpenses() {
       setAllExpenses(updatedExpenses);
       
       // Обновляем отображаемые расходы
-      updateDisplayedExpenses(updatedExpenses, selectedDate, sortOption, filterOptions);
+      updateDisplayedExpenses(updatedExpenses, selectedDate, sortOption, filterOptions, showOnlyToday);
       
       return true;
     } catch (err) {
@@ -160,7 +214,7 @@ export function useExpenses() {
   }, [allExpenses, selectedDate, sortOption, filterOptions, updateDisplayedExpenses]);
   
   // Обновление расхода
-  const updateExpense = useCallback(async (updatedExpense: Expense) => {
+  const updateExpense = useCallback(async (updatedExpense: Expense, showOnlyToday: boolean = false) => {
     try {
       setLoading(true);
       await ExpenseService.updateExpense(updatedExpense);
@@ -172,7 +226,7 @@ export function useExpenses() {
       setAllExpenses(updatedExpenses);
       
       // Обновляем отображаемые расходы
-      updateDisplayedExpenses(updatedExpenses, selectedDate, sortOption, filterOptions);
+      updateDisplayedExpenses(updatedExpenses, selectedDate, sortOption, filterOptions, showOnlyToday);
       
       return true;
     } catch (err) {
@@ -190,7 +244,17 @@ export function useExpenses() {
     updateDisplayedExpenses(allExpenses, date, sortOption, filterOptions);
   }, [allExpenses, sortOption, filterOptions, updateDisplayedExpenses]);
   
-  // Изменение опции сортировки
+  // Изменение периода дат
+  const changeDateRange = useCallback((startDate: Date, endDate: Date) => {
+    setDateRange({ startDate, endDate });
+    updateDisplayedExpenses(allExpenses, selectedDate, sortOption, {
+      ...filterOptions,
+      startDate,
+      endDate
+    });
+  }, [allExpenses, selectedDate, sortOption, filterOptions, updateDisplayedExpenses]);
+  
+  // Изменение сортировки
   const changeSortOption = useCallback((option: SortOption) => {
     setSortOption(option);
     updateDisplayedExpenses(allExpenses, selectedDate, option, filterOptions);
@@ -202,8 +266,8 @@ export function useExpenses() {
     updateDisplayedExpenses(allExpenses, selectedDate, sortOption, filters);
   }, [allExpenses, selectedDate, sortOption, updateDisplayedExpenses]);
   
-  // Расчет общей суммы расходов за выбранный день
-  const getDailyTotal = useCallback((): number => {
+  // Расчет общей суммы расходов за период
+  const getTotal = useCallback((): number => {
     return displayedExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   }, [displayedExpenses]);
   
@@ -223,10 +287,12 @@ export function useExpenses() {
     loadExpenses,
     selectedDate,
     changeSelectedDate,
+    dateRange,
+    changeDateRange,
     sortOption,
     changeSortOption,
     filterOptions,
     changeFilters,
-    getDailyTotal,
+    getTotal,
   };
 } 

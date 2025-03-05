@@ -47,7 +47,7 @@ export const ExpenseItem: React.FC<ExpenseItemProps> = ({
         )}
         
         <ThemedText type="title" style={styles.amount}>
-          {expense.amount.toFixed(2)} ₽
+          {expense.amount.toFixed(2)} BYN
         </ThemedText>
       </View>
       

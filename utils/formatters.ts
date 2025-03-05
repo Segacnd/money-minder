@@ -4,7 +4,7 @@
  * @param currency Валюта (по умолчанию - рубль)
  * @returns Отформатированная строка с суммой и символом валюты
  */
-export function formatCurrency(amount: number, currency: string = '₽'): string {
+export function formatCurrency(amount: number, currency: string = 'BYN'): string {
   return `${amount.toFixed(2)} ${currency}`;
 }
 

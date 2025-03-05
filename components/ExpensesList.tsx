@@ -1,5 +1,5 @@
-import React from 'react';
-import { StyleSheet, View, TouchableOpacity, Alert } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { StyleSheet, View, TouchableOpacity, Alert, Animated, FlatList } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { IconSymbol } from '@/components/ui/IconSymbol';
@@ -7,6 +7,7 @@ import { Expense } from '@/types/expenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { formatCurrency, formatDate } from '@/utils/formatters';
+import { predefinedCategories } from '@/constants/Categories';
 
 interface ExpensesListProps {
   expenses: Expense[];
@@ -14,113 +15,183 @@ interface ExpensesListProps {
   showDate?: boolean;
 }
 
-export function ExpensesList({ expenses, onDeleteItem, showDate = false }: ExpensesListProps) {
-  const colorScheme = useColorScheme();
-  const themeColors = Colors[colorScheme ?? 'light'];
-  
-  const handleDelete = (expense: Expense) => {
-    Alert.alert(
-      'Удаление расхода',
-      `Вы уверены, что хотите удалить расход "${expense.description}" на сумму ${formatCurrency(expense.amount)}?`,
-      [
-        {
-          text: 'Отмена',
-          style: 'cancel',
-        },
-        {
-          text: 'Удалить',
-          style: 'destructive',
-          onPress: () => onDeleteItem(expense),
-        },
-      ]
-    );
+const AnimatedExpenseItem = React.memo(({ 
+  expense, 
+  onDelete, 
+  showDate, 
+  themeColors 
+}: { 
+  expense: Expense; 
+  onDelete: (expense: Expense) => void; 
+  showDate: boolean; 
+  themeColors: any; 
+}) => {
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true
+      })
+    ]).start();
+  }, []);
+
+  const handleDelete = () => {
+    Animated.parallel([
+      Animated.timing(scaleAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      }),
+      Animated.timing(opacityAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true
+      })
+    ]).start(() => {
+      onDelete(expense);
+    });
   };
-  
-  const getCategoryIcon = (category: string) => {
-    // Сопоставление категорий с иконками
-    const categoryIcons: Record<string, string> = {
-      'Продукты': 'cart',
-      'Транспорт': 'car',
-      'Жильё': 'house',
-      'Развлечения': 'film',
-      'Здоровье': 'heart',
-      'Одежда': 'bag',
-      'Рестораны': 'fork.knife',
-      'Путешествия': 'airplane',
-      'Связь': 'phone',
-      'Образование': 'book',
-    };
-    
-    return categoryIcons[category] || 'tag';
-  };
-  
-  if (expenses.length === 0) {
-    return null;
-  }
-  
+
+  const predefinedCategory = predefinedCategories.find(cat => cat.name === expense.category);
+
   return (
-    <View style={styles.container}>
-      {expenses.map((expense) => (
-        <ThemedView key={expense.id} style={styles.expenseItem}>
-          <View style={styles.expenseMain}>
-            <View style={styles.categoryIconContainer}>
-              <IconSymbol 
-                name={getCategoryIcon(expense.category)} 
-                size={20} 
-                color={themeColors.tint}
-              />
-            </View>
+    <Animated.View
+      style={[
+        styles.expenseItem,
+        {
+          transform: [{ scale: scaleAnim }],
+          opacity: opacityAnim
+        }
+      ]}
+    >
+      <ThemedView style={styles.expenseItemContent}>
+        <View style={styles.expenseMain}>
+          <View style={[
+            styles.categoryIconContainer,
+            { backgroundColor: `${predefinedCategory?.color || themeColors.tint}20` }
+          ]}>
+            <IconSymbol 
+              name={predefinedCategory?.icon || 'tag'} 
+              size={20} 
+              color={predefinedCategory?.color || themeColors.tint}
+            />
+          </View>
+          
+          <View style={styles.expenseDetails}>
+            <ThemedText style={styles.expenseDescription}>
+              {expense.description || expense.category}
+            </ThemedText>
             
-            <View style={styles.expenseDetails}>
-              <ThemedText style={styles.expenseDescription}>
-                {expense.description}
-              </ThemedText>
-              
-              <View style={styles.expenseMetadata}>
-                <View style={styles.categoryContainer}>
-                  <ThemedText style={styles.categoryText}>
-                    {expense.category}
-                  </ThemedText>
-                </View>
-                
-                {showDate && (
-                  <ThemedText style={styles.dateText}>
-                    {formatDate(new Date(expense.timestamp))}
-                  </ThemedText>
-                )}
+            <View style={styles.expenseMetadata}>
+              <View style={[
+                styles.categoryContainer,
+                { backgroundColor: `${predefinedCategory?.color || themeColors.tint}20` }
+              ]}>
+                <ThemedText style={[
+                  styles.categoryText,
+                  { color: predefinedCategory?.color || themeColors.tint }
+                ]}>
+                  {expense.category}
+                </ThemedText>
               </View>
-            </View>
-            
-            <View style={styles.amountContainer}>
-              <ThemedText style={styles.amountText}>
-                {formatCurrency(expense.amount)}
-              </ThemedText>
+              
+              {showDate && (
+                <ThemedText style={styles.dateText}>
+                  {formatDate(new Date(expense.timestamp))}
+                </ThemedText>
+              )}
             </View>
           </View>
           
-          <TouchableOpacity 
-            style={styles.deleteButton}
-            onPress={() => handleDelete(expense)}
-          >
-            <IconSymbol name="trash" size={18} color="rgba(255, 59, 48, 0.8)" />
-          </TouchableOpacity>
-        </ThemedView>
-      ))}
-    </View>
+          <View style={styles.amountContainer}>
+            <ThemedText style={styles.amountText}>
+              {formatCurrency(expense.amount)}
+            </ThemedText>
+          </View>
+        </View>
+        
+        <TouchableOpacity 
+          style={styles.deleteButton}
+          onPress={() => {
+            Alert.alert(
+              'Удаление расхода',
+              `Вы уверены, что хотите удалить этот расход?`,
+              [
+                {
+                  text: 'Отмена',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Удалить',
+                  style: 'destructive',
+                  onPress: handleDelete,
+                },
+              ]
+            );
+          }}
+        >
+          <IconSymbol name="trash" size={18} color="rgba(255, 59, 48, 0.8)" />
+        </TouchableOpacity>
+      </ThemedView>
+    </Animated.View>
+  );
+});
+
+export function ExpensesList({ expenses, onDeleteItem, showDate = false }: ExpensesListProps) {
+  const colorScheme = useColorScheme();
+  const themeColors = Colors[colorScheme ?? 'light'];
+
+  if (expenses.length === 0) {
+    return null;
+  }
+
+  const renderItem = ({ item }: { item: Expense }) => (
+    <AnimatedExpenseItem
+      expense={item}
+      onDelete={onDeleteItem}
+      showDate={showDate}
+      themeColors={themeColors}
+    />
+  );
+
+  return (
+    <FlatList
+      data={expenses}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.id}
+      contentContainerStyle={styles.container}
+      showsVerticalScrollIndicator={false}
+      removeClippedSubviews={true}
+      maxToRenderPerBatch={10}
+      windowSize={10}
+      initialNumToRender={10}
+    />
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 20,
+    paddingBottom: 20,
   },
   expenseItem: {
+    marginBottom: 10,
+  },
+  expenseItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderRadius: 12,
     padding: 16,
-    marginBottom: 10,
   },
   expenseMain: {
     flex: 1,
@@ -131,7 +202,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(150, 150, 150, 0.1)',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
@@ -150,7 +220,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   categoryContainer: {
-    backgroundColor: 'rgba(150, 150, 150, 0.1)',
     paddingVertical: 4,
     paddingHorizontal: 8,
     borderRadius: 4,
@@ -158,7 +227,6 @@ const styles = StyleSheet.create({
   },
   categoryText: {
     fontSize: 12,
-    opacity: 0.7,
   },
   dateText: {
     fontSize: 12,

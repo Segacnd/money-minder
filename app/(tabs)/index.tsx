@@ -1,185 +1,152 @@
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, Text } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, Modal, Platform } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { ScrollView } from 'react-native-gesture-handler';
-import { ExpenseForm } from '@/components/ExpenseForm';
 import { DailyTotalWidget } from '@/components/DailyTotalWidget';
-import { ExpenseFilters, ExpenseFilterOptions } from '@/components/ExpenseFilters';
-import { ExpenseSortSelector, SortOption } from '@/components/ExpenseSortSelector';
+import { ExpenseForm } from '@/components/ExpenseForm';
+import { ExpenseFilters } from '@/components/ExpenseFilters';
+import { ExpenseSortSelector } from '@/components/ExpenseSortSelector';
 import { ExpensesList } from '@/components/ExpensesList';
 import { useExpenses } from '@/hooks/useExpenses';
-import { Expense } from '@/types/expenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import { formatCurrentDate } from '@/utils/formatters';
+import { Expense } from '@/types/expenses';
 
-export default function HomeScreen() {
+export default function TabOneScreen() {
+  const [showExpenseForm, setShowExpenseForm] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const {
     expenses,
-    loading,
-    error,
     addExpense,
-    loadExpenses,
     deleteExpense,
+    loadExpenses,
+    getTotal,
     sortOption,
     changeSortOption,
     filterOptions,
     changeFilters,
-    getDailyTotal,
   } = useExpenses();
-  
-  const [refreshing, setRefreshing] = useState(false);
-  const [showExpenseForm, setShowExpenseForm] = useState(false);
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
-  
-  // Обновляем данные каждый раз при фокусе на странице
-  useFocusEffect(
-    useCallback(() => {
-      console.log('Главная: обновление данных при фокусе');
-      loadExpenses();
-      return () => {
-        // Функция очистки, если потребуется
-      };
-    }, [loadExpenses])
-  );
-  
-  // Обработчик для обновления списка расходов при потягивании вниз
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadExpenses();
+    await loadExpenses(true);
     setRefreshing(false);
   };
-  
-  // Обработчик добавления нового расхода
-  const handleAddExpense = async (expenseData: Omit<Expense, 'id' | 'timestamp'>) => {
-    const success = await addExpense(expenseData);
-    if (success) {
-      setShowExpenseForm(false);
-    }
-    return success;
+
+  useEffect(() => {
+    loadExpenses(true);
+  }, []);
+
+  const handleAddExpense = async (expense: Omit<Expense, 'id' | 'timestamp'>) => {
+    await addExpense(expense, true);
+    setShowExpenseForm(false);
   };
-  
-  // Обработчик удаления расхода
+
   const handleDeleteExpense = async (expense: Expense) => {
-    await deleteExpense(expense.id);
+    await deleteExpense(expense.id, true);
   };
-  
-  // Обработчик изменения фильтров
-  const handleApplyFilters = (filters: ExpenseFilterOptions) => {
-    changeFilters(filters);
-  };
-  
-  // Обработчик сброса фильтров
-  const handleResetFilters = () => {
-    changeFilters({});
-  };
-  
-  // Обработчик изменения сортировки
-  const handleChangeSortOption = (option: SortOption) => {
-    changeSortOption(option);
-  };
-  
+
+  const ListHeader = () => (
+    <>
+      <DailyTotalWidget totalAmount={getTotal()} />
+
+      <TouchableOpacity
+        style={[styles.addButton, { borderColor: themeColors.tint }]}
+        onPress={() => setShowExpenseForm(true)}
+      >
+        <ThemedText style={{ color: themeColors.tint }}>
+          Добавить расход
+        </ThemedText>
+      </TouchableOpacity>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showExpenseForm}
+        onRequestClose={() => setShowExpenseForm(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalContainer}
+          activeOpacity={1}
+          onPress={() => setShowExpenseForm(false)}
+        >
+          <TouchableOpacity 
+            activeOpacity={1} 
+            onPress={(e) => e.stopPropagation()}
+          >
+            <ThemedView style={styles.modalContent}>
+              <ExpenseForm
+                onSubmit={handleAddExpense}
+                onCancel={() => setShowExpenseForm(false)}
+              />
+            </ThemedView>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      <View style={styles.filtersContainer}>
+        <ExpenseSortSelector
+          onSelectSort={changeSortOption}
+          currentSort={sortOption}
+        />
+        <ExpenseFilters
+          onApplyFilters={changeFilters}
+          onResetFilters={() => changeFilters({})}
+          activeFilters={filterOptions}
+        />
+      </View>
+
+      <ThemedText type="subtitle" style={styles.sectionTitle}>
+        Расходы за сегодня
+      </ThemedText>
+    </>
+  );
+
+  const renderItem = ({ item }: { item: Expense }) => (
+    <ExpensesList
+      expenses={[item]}
+      onDeleteItem={handleDeleteExpense}
+    />
+  );
+
   return (
     <View style={styles.container}>
       <ThemedView style={styles.header}>
         <ThemedText type="title" style={styles.headerTitle}>
-          Расходы на сегодня
+          Money Minder
         </ThemedText>
         <ThemedText style={styles.headerSubtitle}>
-          {formatCurrentDate()}
+          {new Date().toLocaleDateString('ru-RU', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          })}
         </ThemedText>
       </ThemedView>
-      
-      {loading && !refreshing ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={themeColors.tint} />
-          <ThemedText style={styles.loaderText}>Загрузка данных...</ThemedText>
-        </View>
-      ) : (
-        <ScrollView 
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[themeColors.tint]}
-              tintColor={themeColors.tint}
-            />
-          }
-        >
-          {error && (
-            <ThemedView style={styles.errorContainer}>
-              <ThemedText style={styles.errorText}>{error}</ThemedText>
-            </ThemedView>
-          )}
-          
-          {/* Виджет с общей суммой расходов за сегодня */}
-          <DailyTotalWidget totalAmount={getDailyTotal()} />
-          
-          {/* Форма добавления расхода */}
-          {showExpenseForm ? (
-            <ThemedView style={styles.formContainer}>
-              <View style={styles.formHeader}>
-                <ThemedText type="subtitle">Добавить расход</ThemedText>
-                <TouchableOpacity 
-                  onPress={() => setShowExpenseForm(false)}
-                  style={styles.closeButton}
-                >
-                  <IconSymbol name="xmark.circle.fill" size={24} color={themeColors.tint} />
-                </TouchableOpacity>
-              </View>
-              <ExpenseForm onSubmit={handleAddExpense} />
-            </ThemedView>
-          ) : (
-            <TouchableOpacity
-              style={[styles.addButton, { backgroundColor: themeColors.tint }]}
-              onPress={() => setShowExpenseForm(true)}
-            >
-              <IconSymbol name="plus" size={20} color={colorScheme === 'dark' ? 'black' : 'white'} />
-              <ThemedText style={[styles.addButtonText, { color: colorScheme === 'dark' ? 'black' : 'white' }]}>
-                Добавить расход
-              </ThemedText>
-            </TouchableOpacity>
-          )}
-          
-          {/* Блок с сортировкой и фильтрацией */}
-          <View style={styles.filtersContainer}>
-            <ExpenseSortSelector 
-              onSelectSort={handleChangeSortOption} 
-              currentSort={sortOption} 
-            />
-            <ExpenseFilters 
-              onApplyFilters={handleApplyFilters}
-              onResetFilters={handleResetFilters}
-              activeFilters={filterOptions}
-            />
-          </View>
-          
-          {/* Список расходов */}
-          <ThemedText type="subtitle" style={styles.sectionTitle}>
-            Список расходов
-          </ThemedText>
-          
-          <ExpensesList
-            expenses={expenses}
-            onDeleteItem={handleDeleteExpense}
+
+      <FlatList
+        data={expenses}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={ListHeader}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[themeColors.tint]}
+            tintColor={themeColors.tint}
           />
-          
-          {expenses.length === 0 && (
-            <ThemedView style={styles.emptyStateContainer}>
-              <ThemedText style={styles.emptyStateText}>
-                Нет расходов за сегодня. Добавьте расход, нажав на кнопку выше.
-              </ThemedText>
-            </ThemedView>
-          )}
-        </ScrollView>
-      )}
+        }
+        showsVerticalScrollIndicator={false}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        initialNumToRender={10}
+      />
     </View>
   );
 }
@@ -202,57 +169,15 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     opacity: 0.7,
   },
-  loaderContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  loaderText: {
-    marginTop: 12,
-  },
-  errorContainer: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-  },
-  errorText: {
-    color: '#FF3B30',
-    textAlign: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 100,
   },
   addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 14,
+    marginVertical: 16,
+    padding: 12,
+    borderWidth: 1,
     borderRadius: 8,
-    marginBottom: 16,
-  },
-  addButtonText: {
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  formContainer: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  formHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  closeButton: {
-    padding: 4,
   },
   filtersContainer: {
     flexDirection: 'row',
@@ -263,14 +188,14 @@ const styles = StyleSheet.create({
   sectionTitle: {
     marginBottom: 12,
   },
-  emptyStateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    marginTop: 20,
+  modalContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  emptyStateText: {
-    textAlign: 'center',
-    opacity: 0.7,
+  modalContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    width: '100%',
   },
 });

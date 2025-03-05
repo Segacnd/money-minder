@@ -1,10 +1,8 @@
-import React, { useState, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, Modal } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, FlatList, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { ScrollView } from 'react-native-gesture-handler';
-import { DailyTotalWidget } from '@/components/DailyTotalWidget';
 import { ExpenseFilters, ExpenseFilterOptions } from '@/components/ExpenseFilters';
 import { ExpenseSortSelector, SortOption } from '@/components/ExpenseSortSelector';
 import { ExpensesList } from '@/components/ExpensesList';
@@ -12,8 +10,6 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { Expense } from '@/types/expenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
-import { IconSymbol } from '@/components/ui/IconSymbol';
-import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function HistoryScreen() {
   const {
@@ -22,17 +18,13 @@ export default function HistoryScreen() {
     error,
     loadExpenses,
     deleteExpense,
-    selectedDate,
-    changeSelectedDate,
     sortOption,
     changeSortOption,
     filterOptions,
     changeFilters,
-    getDailyTotal,
   } = useExpenses();
   
   const [refreshing, setRefreshing] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
@@ -51,21 +43,17 @@ export default function HistoryScreen() {
   // Обработчик для обновления списка расходов при потягивании вниз
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadExpenses();
+    await loadExpenses(false);
     setRefreshing(false);
   };
+
+  useEffect(() => {
+    loadExpenses(false);
+  }, []);
   
   // Обработчик удаления расхода
   const handleDeleteExpense = async (expense: Expense) => {
-    await deleteExpense(expense.id);
-  };
-  
-  // Обработчик изменения даты
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      changeSelectedDate(selectedDate);
-    }
+    await deleteExpense(expense.id, false);
   };
   
   // Обработчик изменения фильтров
@@ -83,15 +71,47 @@ export default function HistoryScreen() {
     changeSortOption(option);
   };
   
-  // Форматирование даты для отображения
-  const formatDate = (date: Date) => {
-    const options: Intl.DateTimeFormatOptions = {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    };
-    return date.toLocaleDateString('ru-RU', options);
-  };
+  const ListHeader = () => (
+    <>
+      {/* Блок с сортировкой и фильтрацией */}
+      <View style={styles.controlsContainer}>
+        <View style={styles.filtersContainer}>
+          <ExpenseSortSelector 
+            onSelectSort={handleChangeSortOption} 
+            currentSort={sortOption} 
+          />
+          <ExpenseFilters 
+            onApplyFilters={handleApplyFilters}
+            onResetFilters={handleResetFilters}
+            activeFilters={filterOptions}
+          />
+        </View>
+      </View>
+
+      {/* Заголовок списка */}
+      <View style={styles.listHeaderContainer}>
+        <ThemedText type="subtitle" style={styles.sectionTitle}>
+          Все расходы
+        </ThemedText>
+      </View>
+    </>
+  );
+
+  const ListEmptyComponent = () => (
+    <ThemedView style={styles.emptyStateContainer}>
+      <ThemedText style={styles.emptyStateText}>
+        У вас пока нет расходов
+      </ThemedText>
+    </ThemedView>
+  );
+
+  const renderItem = ({ item }: { item: Expense }) => (
+    <ExpensesList
+      expenses={[item]}
+      onDeleteItem={handleDeleteExpense}
+      showDate={true}
+    />
+  );
   
   return (
     <View style={styles.container}>
@@ -110,8 +130,12 @@ export default function HistoryScreen() {
           <ThemedText style={styles.loaderText}>Загрузка данных...</ThemedText>
         </View>
       ) : (
-        <ScrollView 
-          style={styles.scrollView}
+        <FlatList
+          data={expenses}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id}
+          ListHeaderComponent={ListHeader}
+          ListEmptyComponent={ListEmptyComponent}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
             <RefreshControl
@@ -121,80 +145,12 @@ export default function HistoryScreen() {
               tintColor={themeColors.tint}
             />
           }
-        >
-          {error && (
-            <ThemedView style={styles.errorContainer}>
-              <ThemedText style={styles.errorText}>{error}</ThemedText>
-            </ThemedView>
-          )}
-          
-          {/* Виджет с общей суммой расходов за выбранный день */}
-          <DailyTotalWidget 
-            totalAmount={getDailyTotal()} 
-            date={selectedDate} 
-          />
-          
-          {/* Выбор даты */}
-          <TouchableOpacity
-            style={styles.datePickerButton}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <IconSymbol name="calendar" size={20} color={themeColors.tint} />
-            <ThemedText style={styles.datePickerText}>
-              {formatDate(selectedDate)}
-            </ThemedText>
-            <IconSymbol name="chevron.down" size={16} color={themeColors.tint} />
-          </TouchableOpacity>
-          
-          {showDatePicker && (
-            <DateTimePicker
-              testID="dateTimePicker"
-              value={selectedDate}
-              mode={'date'}
-              display="default"
-              onChange={handleDateChange}
-            />
-          )}
-          
-          {/* Блок с сортировкой и фильтрацией */}
-          <View style={styles.filtersContainer}>
-            <ExpenseSortSelector 
-              onSelectSort={handleChangeSortOption} 
-              currentSort={sortOption} 
-            />
-            <ExpenseFilters 
-              onApplyFilters={handleApplyFilters}
-              onResetFilters={handleResetFilters}
-              activeFilters={filterOptions}
-            />
-          </View>
-          
-          {/* Список расходов */}
-          <ThemedText type="subtitle" style={styles.sectionTitle}>
-            Список расходов
-          </ThemedText>
-          
-          <ExpensesList
-            expenses={expenses}
-            onDeleteItem={handleDeleteExpense}
-          />
-          
-          {expenses.length === 0 && (
-            <ThemedView style={styles.emptyStateContainer}>
-              <ThemedText style={styles.emptyStateText}>
-                Нет расходов за выбранную дату
-              </ThemedText>
-              <TouchableOpacity
-                style={[styles.emptyStateButton, { borderColor: themeColors.tint }]}
-                onPress={() => changeSelectedDate(new Date())}
-              >
-                <ThemedText style={{ color: themeColors.tint }}>
-                  Вернуться к сегодняшней дате
-                </ThemedText>
-              </TouchableOpacity>
-            </ThemedView>
-          )}
-        </ScrollView>
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          initialNumToRender={10}
+        />
       )}
     </View>
   );
@@ -218,6 +174,27 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     opacity: 0.7,
   },
+  controlsContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150, 150, 150, 0.3)',
+  },
+  filtersContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  listHeaderContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150, 150, 150, 0.3)',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
   loaderContainer: {
     flex: 1,
     alignItems: 'center',
@@ -227,44 +204,8 @@ const styles = StyleSheet.create({
   loaderText: {
     marginTop: 12,
   },
-  errorContainer: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-  },
-  errorText: {
-    color: '#FF3B30',
-    textAlign: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
   scrollContent: {
-    padding: 16,
-  },
-  datePickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(150, 150, 150, 0.1)',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-  },
-  datePickerText: {
-    flex: 1,
-    marginHorizontal: 8,
-    fontSize: 16,
-  },
-  filtersContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    marginBottom: 12,
+    flexGrow: 1,
   },
   emptyStateContainer: {
     alignItems: 'center',
@@ -276,10 +217,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     opacity: 0.7,
-  },
-  emptyStateButton: {
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
   },
 }); 
