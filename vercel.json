@@ -1,19 +1,18 @@
 {
     "version": 2,
-    "builds": [
-      {
-        "src": "dist/**/*",
-        "use": "@vercel/static"
-      }
-    ],
+    "buildCommand": "cd money-minder && npm install && npx expo export",
+    "outputDirectory": "money-minder/dist",
     "routes": [
       { 
         "src": "/(.*)", 
-        "dest": "dist/$1" 
+        "dest": "/$1" 
+      },
+      { 
+        "handle": "filesystem"
       },
       { 
         "src": "/.*", 
-        "dest": "dist/index.html" 
+        "dest": "/index.html" 
       }
     ]
   }
