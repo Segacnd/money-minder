@@ -13,6 +13,7 @@ import { useColorScheme } from '@/hooks/useColorScheme';
 import { Expense } from '@/types/expenses';
 import { useBudget } from '@/hooks/useBudget';
 import { formatCurrency } from '@/utils/formatters';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function TabOneScreen() {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -31,7 +32,8 @@ export default function TabOneScreen() {
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
-  const { budgetData } = useBudget();
+  const { budgetData, updateRemainingLimit } = useBudget();
+  const { scheduleDailyLimitNotification, sendDailyLimitExceededNotification } = useNotifications();
 
   const handleRefresh = async () => {
     Keyboard.dismiss();
@@ -44,10 +46,30 @@ export default function TabOneScreen() {
     loadExpenses(true);
   }, []);
 
+  // Отслеживаем изменение дневного лимита
+  useEffect(() => {
+    if (budgetData && budgetData.remainingDailyLimit > 0) {
+      // Если осталось меньше 20% от дневного лимита
+      if (budgetData.remainingDailyLimit <= budgetData.dailyLimit * 0.2) {
+        scheduleDailyLimitNotification(budgetData.remainingDailyLimit);
+      }
+    }
+  }, [budgetData?.remainingDailyLimit]);
+
   const handleAddExpense = async (expense: Omit<Expense, 'id' | 'timestamp'>) => {
     try {
       setShowExpenseForm(false);
       await addExpense(expense, true);
+      
+      // Обновляем оставшийся дневной лимит
+      if (budgetData) {
+        await updateRemainingLimit(expense.amount);
+      }
+      
+      // Проверяем, не превышен ли дневной лимит после добавления расхода
+      if (budgetData && budgetData.remainingDailyLimit <= 0) {
+        sendDailyLimitExceededNotification();
+      }
     } catch (error) {
       console.error('Ошибка при добавлении расхода:', error);
     }
