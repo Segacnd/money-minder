@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, FlatList, Platform } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, RefreshControl, TouchableOpacity, FlatList, Platform, Keyboard } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -113,6 +113,9 @@ export default function HistoryScreen() {
     />
   );
   
+  // Компонент для нижнего отступа
+  const BottomSpacer = () => <View style={styles.bottomSpacer} />;
+  
   return (
     <View style={styles.container}>
       <ThemedView style={styles.header}>
@@ -135,6 +138,7 @@ export default function HistoryScreen() {
           renderItem={renderItem}
           keyExtractor={(item) => item.id}
           ListHeaderComponent={ListHeader}
+          ListFooterComponent={BottomSpacer}
           ListEmptyComponent={ListEmptyComponent}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
@@ -150,6 +154,7 @@ export default function HistoryScreen() {
           maxToRenderPerBatch={10}
           windowSize={10}
           initialNumToRender={10}
+          onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
     </View>
@@ -206,6 +211,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: 90, // увеличенный отступ для нижней навигации
   },
   emptyStateContainer: {
     alignItems: 'center',
@@ -217,5 +223,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 16,
     opacity: 0.7,
+  },
+  bottomSpacer: {
+    height: 80, // Высота нижней навигации
   },
 }); 

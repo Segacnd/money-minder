@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, ActivityIndicator, ScrollView, RefreshControl, TouchableOpacity, Platform, Modal } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, ScrollView, RefreshControl, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
@@ -62,6 +62,7 @@ export default function AnalyticsScreen() {
 
   // Обработчик для обновления данных при потягивании вниз
   const handleRefresh = async () => {
+    Keyboard.dismiss();
     setRefreshing(true);
     await loadExpenses(false);
     setRefreshing(false);
@@ -183,6 +184,8 @@ export default function AnalyticsScreen() {
               tintColor={themeColors.tint}
             />
           }
+          contentContainerStyle={styles.scrollContent}
+          onScrollBeginDrag={() => Keyboard.dismiss()}
         >
           {/* Выбор периода */}
           <ThemedView style={styles.dateRangeContainer}>
@@ -277,6 +280,9 @@ export default function AnalyticsScreen() {
               </ThemedText>
             </View>
           </ThemedView>
+
+          {/* Нижний отступ для navBar */}
+          <View style={styles.bottomSpacer} />
         </ScrollView>
       )}
 
@@ -292,35 +298,31 @@ export default function AnalyticsScreen() {
               <ThemedView style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <TouchableOpacity 
-                    onPress={() => setShowStartDatePicker(false)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowStartDatePicker(false);
+                    }}
                     style={styles.modalButton}
                   >
                     <ThemedText style={{ color: themeColors.tint }}>Отмена</ThemedText>
                   </TouchableOpacity>
-                  <ThemedText type="subtitle">Начальная дата</ThemedText>
                   <TouchableOpacity 
-                    onPress={() => setShowStartDatePicker(false)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowStartDatePicker(false);
+                    }}
                     style={styles.modalButton}
                   >
                     <ThemedText style={{ color: themeColors.tint }}>Готово</ThemedText>
                   </TouchableOpacity>
                 </View>
+                
                 <DateTimePicker
                   value={displayStartDate}
                   mode="date"
                   display="spinner"
-                  onChange={(event, date) => {
-                    if (date) {
-                      date.setHours(0, 0, 0, 0);
-                      setDisplayStartDate(date);
-                      changeDateRange(date, displayEndDate);
-                    }
-                  }}
-                  maximumDate={displayEndDate}
-                  style={[
-                    styles.datePicker,
-                    { backgroundColor: colorScheme === 'dark' ? '#000000' : '#FFFFFF' }
-                  ]}
+                  onChange={handleStartDateChange}
+                  locale="ru-RU"
                 />
               </ThemedView>
             </View>
@@ -336,36 +338,31 @@ export default function AnalyticsScreen() {
               <ThemedView style={styles.modalContent}>
                 <View style={styles.modalHeader}>
                   <TouchableOpacity 
-                    onPress={() => setShowEndDatePicker(false)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowEndDatePicker(false);
+                    }}
                     style={styles.modalButton}
                   >
                     <ThemedText style={{ color: themeColors.tint }}>Отмена</ThemedText>
                   </TouchableOpacity>
-                  <ThemedText type="subtitle">Конечная дата</ThemedText>
                   <TouchableOpacity 
-                    onPress={() => setShowEndDatePicker(false)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setShowEndDatePicker(false);
+                    }}
                     style={styles.modalButton}
                   >
                     <ThemedText style={{ color: themeColors.tint }}>Готово</ThemedText>
                   </TouchableOpacity>
                 </View>
+                
                 <DateTimePicker
                   value={displayEndDate}
                   mode="date"
                   display="spinner"
-                  onChange={(event, date) => {
-                    if (date) {
-                      date.setHours(23, 59, 59, 999);
-                      setDisplayEndDate(date);
-                      changeDateRange(displayStartDate, date);
-                    }
-                  }}
-                  minimumDate={displayStartDate}
-                  maximumDate={new Date()}
-                  style={[
-                    styles.datePicker,
-                    { backgroundColor: colorScheme === 'dark' ? '#000000' : '#FFFFFF' }
-                  ]}
+                  onChange={handleEndDateChange}
+                  locale="ru-RU"
                 />
               </ThemedView>
             </View>
@@ -375,22 +372,21 @@ export default function AnalyticsScreen() {
         <>
           {showStartDatePicker && (
             <DateTimePicker
-              value={dateRange.startDate}
+              value={displayStartDate}
               mode="date"
-              display="calendar"
+              display="default"
               onChange={handleStartDateChange}
-              maximumDate={dateRange.endDate}
+              locale="ru-RU"
             />
           )}
-
+          
           {showEndDatePicker && (
             <DateTimePicker
-              value={dateRange.endDate}
+              value={displayEndDate}
               mode="date"
-              display="calendar"
+              display="default"
               onChange={handleEndDateChange}
-              minimumDate={dateRange.startDate}
-              maximumDate={new Date()}
+              locale="ru-RU"
             />
           )}
         </>
@@ -501,8 +497,10 @@ const styles = StyleSheet.create({
   modalButton: {
     minWidth: 60,
   },
-  datePicker: {
-    height: 200,
-    width: '100%',
+  scrollContent: {
+    padding: 16,
+  },
+  bottomSpacer: {
+    height: 80, // Высота нижней навигации
   },
 }); 

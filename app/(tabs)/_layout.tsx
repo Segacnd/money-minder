@@ -8,6 +8,29 @@ import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
+const tabs = [
+  {
+    name: 'index',
+    title: 'Главная',
+    icon: 'home-outline',
+  },
+  {
+    name: 'history',
+    title: 'История',
+    icon: 'time-outline',
+  },
+  {
+    name: 'budget',
+    title: 'Бюджет',
+    icon: 'wallet-outline',
+  },
+  {
+    name: 'analytics',
+    title: 'Аналитика',
+    icon: 'stats-chart-outline',
+  },
+];
+
 export default function TabLayout() {
   const colorScheme = useColorScheme();
 
@@ -45,6 +68,13 @@ export default function TabLayout() {
         options={{
           title: 'Аналитика',
           tabBarIcon: ({ color }) => <IconSymbol size={28} name="chart.bar.fill" color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="budget"
+        options={{
+          title: 'Бюджет',
+          tabBarIcon: ({ color }) => <IconSymbol size={28} name="creditcard.fill" color={color} />,
         }}
       />
     </Tabs>
