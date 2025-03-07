@@ -92,7 +92,7 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
   
   return (
     <View style={styles.container}>
-      <ThemedText type="subtitle" style={styles.title}>
+      <ThemedText type="subtitle" style={[styles.title, { fontSize: 13 }]}>
         Расходы по месяцам
       </ThemedText>
       
@@ -121,9 +121,7 @@ export const MonthlyExpensesChart: React.FC<MonthlyExpensesChartProps> = ({
               stroke: colorScheme === 'dark' ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
             }
           }}
-          style={[
-            styles.chart
-          ]}
+          style={styles.chart}
           showValuesOnTopOfBars={true}
           fromZero
         />
@@ -143,7 +141,7 @@ const styles = StyleSheet.create({
   },
   title: {
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: 'left',
     paddingHorizontal: 16,
     width: '100%',
   },

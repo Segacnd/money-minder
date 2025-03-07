@@ -1,23 +1,92 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, Modal, Platform, KeyboardAvoidingView, SafeAreaView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import React, { useState, useEffect, useMemo, memo, useRef, useCallback } from 'react';
+import { StyleSheet, View, FlatList, TouchableOpacity, RefreshControl, Modal, Platform, KeyboardAvoidingView, Keyboard, Dimensions, Animated } from 'react-native';
+import { router } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { DailyTotalWidget } from '@/components/DailyTotalWidget';
 import { ExpenseForm } from '@/components/ExpenseForm';
 import { ExpenseFilters } from '@/components/ExpenseFilters';
 import { ExpenseSortSelector } from '@/components/ExpenseSortSelector';
 import { ExpensesList } from '@/components/ExpensesList';
+import { DailyLimitProgressBar } from '@/components/DailyLimitProgressBar';
 import { useExpenses } from '@/hooks/useExpenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Expense } from '@/types/expenses';
 import { useBudget } from '@/hooks/useBudget';
 import { formatCurrency } from '@/utils/formatters';
-import { useNotifications } from '@/hooks/useNotifications';
+import { Ionicons } from '@expo/vector-icons';
+import { TipDisplay } from '@/components/TipDisplay';
+import { moneyTips } from '@/constants/MoneyTips';
+import * as Haptics from 'expo-haptics';
+
+const DynamicIslandIcon = memo(() => {
+  if (Platform.OS !== 'ios') return null;
+
+  const { height } = Dimensions.get('window');
+  const hasDynamicIsland = Platform.OS === 'ios' && height >= 852;
+
+  if (!hasDynamicIsland) return null;
+
+  return (
+    <View style={styles.dynamicIslandWrapper}>
+      <View style={styles.dynamicIslandIcon}>
+        <Ionicons name="wallet-outline" size={24} color="#fff" />
+      </View>
+    </View>
+  );
+});
+
+const ListHeader = memo(({ 
+  budgetData, 
+  onAddPress, 
+  sortOption, 
+  onSortChange,
+  filterOptions,
+  onFiltersChange,
+  onFiltersReset,
+  themeColors 
+}: any) => (
+  <>
+    {budgetData && (
+      <DailyLimitProgressBar 
+        remainingLimit={budgetData.remainingDailyLimit}
+        totalLimit={budgetData.dailyLimit}
+      />
+    )}
+
+    <TouchableOpacity
+      style={[styles.addButton, { borderColor: themeColors.tint }]}
+      onPress={onAddPress}
+    >
+      <ThemedText style={{ color: themeColors.tint }}>
+        Добавить расход
+      </ThemedText>
+    </TouchableOpacity>
+
+    <View style={styles.filtersContainer}>
+      <ExpenseSortSelector
+        onSelectSort={onSortChange}
+        currentSort={sortOption}
+      />
+      <ExpenseFilters
+        onApplyFilters={onFiltersChange}
+        onResetFilters={onFiltersReset}
+        activeFilters={filterOptions}
+      />
+    </View>
+
+    <ThemedText type="subtitle" style={styles.sectionTitle}>
+      Расходы за сегодня
+    </ThemedText>
+  </>
+));
 
 export default function TabOneScreen() {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [deletedExpense, setDeletedExpense] = useState<Expense | null>(null);
+  const snackbarAnim = useRef(new Animated.Value(0)).current;
+  
   const {
     expenses,
     addExpense,
@@ -33,7 +102,50 @@ export default function TabOneScreen() {
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
   const { budgetData, updateRemainingLimit } = useBudget();
-  const { scheduleDailyLimitNotification, sendDailyLimitExceededNotification } = useNotifications();
+
+  const showSnackbar = useCallback(() => {
+    Animated.timing(snackbarAnim, {
+      toValue: 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+
+    // Автоматически скрываем через 5 секунд
+    setTimeout(() => {
+      hideSnackbar();
+    }, 5000);
+  }, []);
+
+  const hideSnackbar = useCallback(() => {
+    Animated.timing(snackbarAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      setDeletedExpense(null);
+    });
+  }, []);
+
+  const handleDeleteExpense = useCallback(async (expense: Expense) => {
+    setDeletedExpense(expense);
+    await deleteExpense(expense.id, true);
+    showSnackbar();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }, [deleteExpense, showSnackbar]);
+
+  const handleUndoDelete = useCallback(async () => {
+    if (deletedExpense) {
+      await addExpense({
+        title: deletedExpense.title,
+        amount: deletedExpense.amount,
+        category: deletedExpense.category,
+        description: deletedExpense.description,
+        icon: deletedExpense.icon,
+      }, true);
+      hideSnackbar();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  }, [deletedExpense, addExpense]);
 
   const handleRefresh = async () => {
     Keyboard.dismiss();
@@ -46,16 +158,6 @@ export default function TabOneScreen() {
     loadExpenses(true);
   }, []);
 
-  // Отслеживаем изменение дневного лимита
-  useEffect(() => {
-    if (budgetData && budgetData.remainingDailyLimit > 0) {
-      // Если осталось меньше 20% от дневного лимита
-      if (budgetData.remainingDailyLimit <= budgetData.dailyLimit * 0.2) {
-        scheduleDailyLimitNotification(budgetData.remainingDailyLimit);
-      }
-    }
-  }, [budgetData?.remainingDailyLimit]);
-
   const handleAddExpense = async (expense: Omit<Expense, 'id' | 'timestamp'>) => {
     try {
       setShowExpenseForm(false);
@@ -65,96 +167,67 @@ export default function TabOneScreen() {
       if (budgetData) {
         await updateRemainingLimit(expense.amount);
       }
-      
-      // Проверяем, не превышен ли дневной лимит после добавления расхода
-      if (budgetData && budgetData.remainingDailyLimit <= 0) {
-        sendDailyLimitExceededNotification();
-      }
     } catch (error) {
       console.error('Ошибка при добавлении расхода:', error);
     }
   };
 
-  const handleDeleteExpense = async (expense: Expense) => {
-    Keyboard.dismiss();
-    await deleteExpense(expense.id, true);
-  };
-
-  const ListHeader = () => (
-    <>
-      <DailyTotalWidget totalAmount={getTotal()} />
-
-      {budgetData && (
-        <ThemedView style={styles.dailyLimitContainer}>
-          <ThemedText>Дневной лимит:</ThemedText>
-          <ThemedText style={[styles.dailyLimit, { color: themeColors.tint }]}>
-            {formatCurrency(budgetData.remainingDailyLimit)}
-          </ThemedText>
-        </ThemedView>
-      )}
-
-      <TouchableOpacity
-        style={[styles.addButton, { borderColor: themeColors.tint }]}
-        onPress={() => setShowExpenseForm(true)}
-      >
-        <ThemedText style={{ color: themeColors.tint }}>
-          Добавить расход
-        </ThemedText>
-      </TouchableOpacity>
-
-      <View style={styles.filtersContainer}>
-        <ExpenseSortSelector
-          onSelectSort={changeSortOption}
-          currentSort={sortOption}
-        />
-        <ExpenseFilters
-          onApplyFilters={changeFilters}
-          onResetFilters={() => changeFilters({})}
-          activeFilters={filterOptions}
-        />
-      </View>
-
-      <ThemedText type="subtitle" style={styles.sectionTitle}>
-        Расходы за сегодня
-      </ThemedText>
-    </>
-  );
-
-  const renderItem = ({ item }: { item: Expense }) => (
-    <ExpensesList
-      expenses={[item]}
-      onDeleteItem={handleDeleteExpense}
-    />
-  );
-
   // Компонент для нижнего отступа
   const BottomSpacer = () => <View style={styles.bottomSpacer} />;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.container}>
       <KeyboardAvoidingView 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ThemedView style={styles.header}>
-          <ThemedText type="title" style={styles.headerTitle}>
-            Money Minder
-          </ThemedText>
-          <ThemedText style={styles.headerSubtitle}>
-            {new Date().toLocaleDateString('ru-RU', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric'
-            })}
-          </ThemedText>
+          <View style={styles.headerContent}>
+            <View style={styles.headerLeft}>
+              <ThemedText type="title" style={styles.headerTitle}>
+                Money Minder
+              </ThemedText>
+              <TipDisplay
+                tips={moneyTips}
+                style={styles.headerSubtitle}
+                intervalDuration={5000}
+              />
+            </View>
+            <TouchableOpacity 
+              style={styles.headerRight}
+              onPress={() => router.push("/settings")}
+            >
+              <Ionicons 
+                name="settings-outline" 
+                size={24} 
+                color={themeColors.text} 
+              />
+            </TouchableOpacity>
+          </View>
         </ThemedView>
 
         <FlatList
           data={expenses}
-          renderItem={renderItem}
+          renderItem={({ item }) => (
+            <ExpensesList
+              expenses={[item]}
+              onDeleteItem={handleDeleteExpense}
+            />
+          )}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={ListHeader}
+          ListHeaderComponent={
+            <ListHeader
+              budgetData={budgetData}
+              onAddPress={() => setShowExpenseForm(true)}
+              sortOption={sortOption}
+              onSortChange={changeSortOption}
+              filterOptions={filterOptions}
+              onFiltersChange={changeFilters}
+              onFiltersReset={() => changeFilters({})}
+              themeColors={themeColors}
+            />
+          }
           ListFooterComponent={BottomSpacer}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
@@ -173,6 +246,33 @@ export default function TabOneScreen() {
           onScrollBeginDrag={() => Keyboard.dismiss()}
         />
 
+        {/* Snackbar для отмены удаления */}
+        {deletedExpense && (
+          <Animated.View 
+            style={[
+              styles.snackbar,
+              {
+                transform: [{
+                  translateY: snackbarAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [100, 0]
+                  })
+                }]
+              }
+            ]}
+          >
+            <ThemedText style={styles.snackbarText}>
+              Расход удален
+            </ThemedText>
+            <TouchableOpacity onPress={handleUndoDelete}>
+              <ThemedText style={styles.undoButton}>
+                ОТМЕНИТЬ
+              </ThemedText>
+            </TouchableOpacity>
+          </Animated.View>
+        )}
+
+        {/* Modal с формой добавления расхода */}
         <Modal
           animationType="slide"
           transparent={true}
@@ -203,14 +303,11 @@ export default function TabOneScreen() {
           </TouchableOpacity>
         </Modal>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
   container: {
     flex: 1,
   },
@@ -221,6 +318,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(150, 150, 150, 0.3)',
   },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {
+    flex: 1,
+  },
+  headerRight: {
+    marginLeft: 16,
+    marginTop: 4,
+  },
   headerTitle: {
     fontSize: 24,
     marginBottom: 4,
@@ -229,7 +338,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   scrollContent: {
-    padding: 16,
+    padding: 6,
     paddingBottom: 90,
   },
   addButton: {
@@ -262,19 +371,50 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 20,
     width: '100%',
   },
-  dailyLimitContainer: {
+  bottomSpacer: {
+    height: 80,
+  },
+  dynamicIslandWrapper: {
+    position: 'absolute',
+    top: 15,
+    left: 100,
+    zIndex: 1000,
+  },
+  dynamicIslandIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  snackbar: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#333',
+    borderRadius: 8,
+    padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    marginVertical: 8,
-    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  dailyLimit: {
-    fontSize: 18,
+  snackbarText: {
+    color: '#fff',
+    fontSize: 16,
+  },
+  undoButton: {
+    color: '#4794eb',
     fontWeight: 'bold',
-  },
-  bottomSpacer: {
-    height: 80,
+    marginLeft: 16,
   },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StyleSheet, View, ActivityIndicator, ScrollView, RefreshControl, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
@@ -7,10 +7,13 @@ import { useExpenses } from '@/hooks/useExpenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Expense } from '@/types/expenses';
-import { TimeOfDayChart } from '@/components/TimeOfDayChart';
-import { MonthlyExpensesChart } from '@/components/MonthlyExpensesChart';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { ExpensesPieChart } from '@/components/analytics/ExpensesPieChart';
+import { ExpensesBarChart } from '@/components/analytics/ExpensesBarChart';
+import { KeyMetrics } from '@/components/analytics/KeyMetrics';
+import { DetailedAnalytics } from '@/components/analytics/DetailedAnalytics';
+import { SegmentedControl } from '@/components/SegmentedControl';
 
 // Типы для данных аналитики
 interface AnalyticsData {
@@ -50,6 +53,7 @@ export default function AnalyticsScreen() {
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [displayStartDate, setDisplayStartDate] = useState<Date>(dateRange.startDate);
   const [displayEndDate, setDisplayEndDate] = useState<Date>(dateRange.endDate);
+  const [selectedPeriod, setSelectedPeriod] = useState<'day' | 'week' | 'month'>('week');
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
@@ -156,351 +160,132 @@ export default function AnalyticsScreen() {
     }
   };
 
+  // Получаем расходы за предыдущий период для сравнения
+  const previousPeriodExpenses = useMemo(() => {
+    const now = Date.now();
+    const monthAgo = now - 30 * 24 * 60 * 60 * 1000; // 30 дней назад
+    return expenses.filter(expense => {
+      return expense.timestamp >= monthAgo && expense.timestamp < now;
+    });
+  }, [expenses]);
+
   return (
-    <View style={styles.container}>
-      <ThemedView style={styles.header}>
-        <ThemedText type="title" style={styles.headerTitle}>
-          Аналитика
-        </ThemedText>
+    <ThemedView style={styles.container}>
+      <View style={styles.header}>
+        <ThemedText style={styles.headerTitle}>Аналитика</ThemedText>
         <ThemedText style={styles.headerSubtitle}>
-          Статистика ваших расходов
+          Анализ ваших расходов
         </ThemedText>
-      </ThemedView>
-
-      {loading && !refreshing ? (
-        <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={themeColors.tint} />
-          <ThemedText style={styles.loaderText}>
-            Загрузка данных...
-          </ThemedText>
-        </View>
-      ) : (
-        <ScrollView
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              colors={[themeColors.tint]}
-              tintColor={themeColors.tint}
-            />
-          }
-          contentContainerStyle={styles.scrollContent}
-          onScrollBeginDrag={() => Keyboard.dismiss()}
-        >
-          {/* Выбор периода */}
-          <ThemedView style={styles.dateRangeContainer}>
-            <ThemedText type="subtitle" style={styles.dateRangeTitle}>
-              Период анализа
-            </ThemedText>
-            <View style={styles.datePickersContainer}>
-              <TouchableOpacity
-                style={[styles.dateButton, { borderColor: themeColors.tint }]}
-                onPress={() => setShowStartDatePicker(true)}
-              >
-                <IconSymbol name="calendar" size={20} color={themeColors.tint} />
-                <ThemedText style={[styles.dateButtonText, { color: themeColors.tint }]}>
-                  {formatDate(displayStartDate)}
-                </ThemedText>
-              </TouchableOpacity>
-              
-              <ThemedText style={styles.dateRangeSeparator}>—</ThemedText>
-              
-              <TouchableOpacity
-                style={[styles.dateButton, { borderColor: themeColors.tint }]}
-                onPress={() => setShowEndDatePicker(true)}
-              >
-                <IconSymbol name="calendar" size={20} color={themeColors.tint} />
-                <ThemedText style={[styles.dateButtonText, { color: themeColors.tint }]}>
-                  {formatDate(displayEndDate)}
-                </ThemedText>
-              </TouchableOpacity>
-            </View>
-          </ThemedView>
-
-          {/* Блок с общей статистикой */}
-          <ThemedView style={styles.analyticsCard}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              Общие расходы за период
-            </ThemedText>
-            <ThemedText type="title" style={[styles.totalAmount, { color: themeColors.tint }]}>
-              {formatCurrency(analyticsData.total)}
-            </ThemedText>
-          </ThemedView>
-
-          {/* График расходов по месяцам */}
-          <ThemedView style={styles.analyticsCard}>
-            <MonthlyExpensesChart 
+      </View>
+      <ScrollView 
+        style={styles.scrollView} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.content}>
+          <ThemedView style={styles.card}>
+            <KeyMetrics
               expenses={expenses}
-              startDate={dateRange.startDate}
-              endDate={dateRange.endDate}
+              previousPeriodExpenses={previousPeriodExpenses}
             />
           </ThemedView>
 
-          {/* График расходов по времени суток */}
-          <ThemedView style={styles.analyticsCard}>
-            <TimeOfDayChart 
-              morningAmount={analyticsData.timeOfDay.morning}
-              afternoonAmount={analyticsData.timeOfDay.afternoon}
-              eveningAmount={analyticsData.timeOfDay.evening}
-              nightAmount={analyticsData.timeOfDay.night}
-            />
-          </ThemedView>
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Распределение расходов</ThemedText>
+            <ThemedView style={styles.card}>
+              <ExpensesPieChart expenses={expenses} />
+            </ThemedView>
+          </View>
 
-          {/* Детализация по времени суток */}
-          <ThemedView style={styles.analyticsCard}>
-            <ThemedText type="subtitle" style={styles.cardTitle}>
-              Расходы по времени суток
-            </ThemedText>
-
-            <View style={styles.statRow}>
-              <ThemedText>Утро (6:00 - 11:59):</ThemedText>
-              <ThemedText type="defaultSemiBold" style={[styles.statValue, { color: '#FFD700' }]}>
-                {formatCurrency(analyticsData.timeOfDay.morning)}
-              </ThemedText>
-            </View>
-
-            <View style={styles.statRow}>
-              <ThemedText>День (12:00 - 17:59):</ThemedText>
-              <ThemedText type="defaultSemiBold" style={[styles.statValue, { color: '#FF8C00' }]}>
-                {formatCurrency(analyticsData.timeOfDay.afternoon)}
-              </ThemedText>
-            </View>
-
-            <View style={styles.statRow}>
-              <ThemedText>Вечер (18:00 - 23:59):</ThemedText>
-              <ThemedText type="defaultSemiBold" style={[styles.statValue, { color: '#8A2BE2' }]}>
-                {formatCurrency(analyticsData.timeOfDay.evening)}
-              </ThemedText>
-            </View>
-
-            <View style={styles.statRow}>
-              <ThemedText>Ночь (00:00 - 5:59):</ThemedText>
-              <ThemedText type="defaultSemiBold" style={[styles.statValue, { color: '#4B0082' }]}>
-                {formatCurrency(analyticsData.timeOfDay.night)}
-              </ThemedText>
-            </View>
-          </ThemedView>
-
-          {/* Нижний отступ для navBar */}
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
-      )}
-
-      {Platform.OS === 'ios' ? (
-        <>
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={showStartDatePicker}
-            onRequestClose={() => setShowStartDatePicker(false)}
-          >
-            <View style={styles.modalContainer}>
-              <ThemedView style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setShowStartDatePicker(false);
-                    }}
-                    style={styles.modalButton}
-                  >
-                    <ThemedText style={{ color: themeColors.tint }}>Отмена</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setShowStartDatePicker(false);
-                    }}
-                    style={styles.modalButton}
-                  >
-                    <ThemedText style={{ color: themeColors.tint }}>Готово</ThemedText>
-                  </TouchableOpacity>
-                </View>
-                
-                <DateTimePicker
-                  value={displayStartDate}
-                  mode="date"
-                  display="spinner"
-                  onChange={handleStartDateChange}
-                  locale="ru-RU"
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>График расходов</ThemedText>
+            <ThemedView style={styles.card}>
+              <View style={styles.barChartContainer}>
+                <SegmentedControl
+                  values={['День', 'Неделя', 'Месяц']}
+                  selectedIndex={['day', 'week', 'month'].indexOf(selectedPeriod)}
+                  onChange={(index: number) => {
+                    setSelectedPeriod(['day', 'week', 'month'][index] as 'day' | 'week' | 'month');
+                  }}
+                  style={styles.segmentedControl}
                 />
-              </ThemedView>
-            </View>
-          </Modal>
-
-          <Modal
-            animationType="slide"
-            transparent={true}
-            visible={showEndDatePicker}
-            onRequestClose={() => setShowEndDatePicker(false)}
-          >
-            <View style={styles.modalContainer}>
-              <ThemedView style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setShowEndDatePicker(false);
-                    }}
-                    style={styles.modalButton}
-                  >
-                    <ThemedText style={{ color: themeColors.tint }}>Отмена</ThemedText>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setShowEndDatePicker(false);
-                    }}
-                    style={styles.modalButton}
-                  >
-                    <ThemedText style={{ color: themeColors.tint }}>Готово</ThemedText>
-                  </TouchableOpacity>
-                </View>
-                
-                <DateTimePicker
-                  value={displayEndDate}
-                  mode="date"
-                  display="spinner"
-                  onChange={handleEndDateChange}
-                  locale="ru-RU"
+                <ExpensesBarChart
+                  expenses={expenses}
+                  period={selectedPeriod}
                 />
-              </ThemedView>
-            </View>
-          </Modal>
-        </>
-      ) : (
-        <>
-          {showStartDatePicker && (
-            <DateTimePicker
-              value={displayStartDate}
-              mode="date"
-              display="default"
-              onChange={handleStartDateChange}
-              locale="ru-RU"
-            />
-          )}
-          
-          {showEndDatePicker && (
-            <DateTimePicker
-              value={displayEndDate}
-              mode="date"
-              display="default"
-              onChange={handleEndDateChange}
-              locale="ru-RU"
-            />
-          )}
-        </>
-      )}
-    </View>
+              </View>
+            </ThemedView>
+          </View>
+
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Детальный анализ</ThemedText>
+            <ThemedView style={styles.card}>
+              <DetailedAnalytics expenses={expenses} />
+            </ThemedView>
+          </View>
+        </View>
+      </ScrollView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#000',
   },
   header: {
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'ios' ? 60 : 16,
     paddingBottom: 16,
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: 'rgba(150, 150, 150, 0.3)',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 26,
     marginBottom: 4,
+    color: '#fff',
   },
   headerSubtitle: {
     opacity: 0.7,
+    color: '#fff',
   },
-  dateRangeContainer: {
-    padding: 16,
-    marginBottom: 8,
-  },
-  dateRangeTitle: {
-    marginBottom: 12,
-  },
-  datePickersContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
+  scrollView: {
     flex: 1,
-  },
-  dateButtonText: {
-    marginLeft: 8,
-    fontSize: 14,
-  },
-  dateRangeSeparator: {
-    marginHorizontal: 8,
-    fontSize: 16,
-  },
-  analyticsCard: {
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 16,
-    borderRadius: 12,
-  },
-  cardTitle: {
-    marginBottom: 12,
-  },
-  totalAmount: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  statRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statValue: {
-    fontWeight: '600',
-  },
-  loaderContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  loaderText: {
-    marginTop: 12,
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: 20,
-    width: '100%',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: 'rgba(150, 150, 150, 0.3)',
-    width: '100%',
-  },
-  modalButton: {
-    minWidth: 60,
   },
   scrollContent: {
+    paddingBottom: 80,
+  },
+  content: {
+    padding: 16,
+    gap: 24,
+  },
+  section: {
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+    paddingHorizontal: 4,
+  },
+  card: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#1c1c1e',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  barChartContainer: {
     padding: 16,
   },
-  bottomSpacer: {
-    height: 80, // Высота нижней навигации
+  segmentedControl: {
+    marginBottom: 16,
   },
 }); 

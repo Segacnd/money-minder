@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View, Modal, Pressable } from 'react-native';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
@@ -59,7 +59,7 @@ export function ExpenseSortSelector({ onSelectSort, currentSort }: ExpenseSortSe
         onPress={openModal}
         testID="sort-button"
       >
-        <IconSymbol name="arrow.up.arrow.down" size={16} color={themeColors.tint} />
+        <MaterialIcons name="sort" size={16} color={themeColors.tint} />
         <ThemedText style={styles.sortButtonText}>
           {currentSortLabel}
         </ThemedText>
@@ -82,7 +82,7 @@ export function ExpenseSortSelector({ onSelectSort, currentSort }: ExpenseSortSe
                 Выберите способ сортировки
               </ThemedText>
               <TouchableOpacity onPress={closeModal}>
-                <IconSymbol name="xmark" size={20} color={themeColors.text} />
+                <MaterialIcons name="close" size={20} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             
@@ -103,7 +103,7 @@ export function ExpenseSortSelector({ onSelectSort, currentSort }: ExpenseSortSe
                     {option.label}
                   </ThemedText>
                   {currentSort === option.value && (
-                    <IconSymbol name="checkmark" size={20} color={themeColors.tint} />
+                    <MaterialIcons name="check" size={20} color={themeColors.tint} />
                   )}
                 </TouchableOpacity>
               ))}

@@ -2,8 +2,10 @@ export interface Expense {
   id: string;
   amount: number;
   category: string;
-  timestamp: number; // Хранение временной метки в миллисекундах
   description?: string;
+  timestamp: number;
+  title: string;
+  icon: string;
 }
 
 export interface ExpenseFilter {

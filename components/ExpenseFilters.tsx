@@ -3,7 +3,7 @@ import { StyleSheet, TouchableOpacity, View, TextInput, Modal, Pressable, Scroll
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
-import { IconSymbol } from '@/components/ui/IconSymbol';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { ExpenseService } from '@/services/ExpenseService';
@@ -148,7 +148,7 @@ export function ExpenseFilters({ onApplyFilters, onResetFilters, activeFilters }
         onPress={openModal}
         testID="filter-button"
       >
-        <IconSymbol name="line.3.horizontal.decrease" size={16} color={themeColors.tint} />
+        <MaterialIcons name="filter-list" size={16} color={themeColors.tint} />
         <ThemedText style={styles.filterButtonText}>
           {activeFiltersCount > 0 ? `Фильтры (${activeFiltersCount})` : 'Фильтры'}
         </ThemedText>
@@ -171,7 +171,7 @@ export function ExpenseFilters({ onApplyFilters, onResetFilters, activeFilters }
                 Фильтры
               </ThemedText>
               <TouchableOpacity onPress={closeModal}>
-                <IconSymbol name="xmark" size={20} color={themeColors.text} />
+                <MaterialIcons name="close" size={20} color={themeColors.text} />
               </TouchableOpacity>
             </View>
             
@@ -192,8 +192,8 @@ export function ExpenseFilters({ onApplyFilters, onResetFilters, activeFilters }
                       onPress={() => setCategory(isCategorySelected(cat) ? undefined : cat)}
                     >
                       <View style={styles.categoryContent}>
-                        <IconSymbol
-                          name={predefinedCategory?.icon || 'tag'}
+                        <MaterialIcons
+                          name={predefinedCategory?.icon || 'label'}
                           size={16}
                           color={predefinedCategory?.color || themeColors.tint}
                         />
@@ -246,16 +246,18 @@ export function ExpenseFilters({ onApplyFilters, onResetFilters, activeFilters }
                   style={[styles.button, styles.resetButton]}
                   onPress={handleResetFilters}
                 >
+                  <MaterialIcons name="close" size={20} color={themeColors.text} style={styles.buttonIcon} />
                   <ThemedText style={styles.resetButtonText}>
                     Сбросить
                   </ThemedText>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.button, styles.applyButton, { backgroundColor: themeColors.tint }]}
+                  style={[styles.button, styles.applyButton]}
                   onPress={handleApplyFilters}
                 >
+                  <MaterialIcons name="check" size={20} color="white" style={styles.buttonIcon} />
                   <ThemedText style={styles.applyButtonText}>
-                    Применить
+                    Готово
                   </ThemedText>
                 </TouchableOpacity>
               </View>
@@ -358,30 +360,34 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginTop: 24,
     marginBottom: 16,
+    gap: 12,
   },
   button: {
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
     flex: 1,
-    marginHorizontal: 4,
+  },
+  buttonIcon: {
+    marginRight: 8,
   },
   resetButton: {
-    borderWidth: 1,
-    borderColor: 'rgba(150, 150, 150, 0.3)',
+    backgroundColor: 'rgba(150, 150, 150, 0.1)',
   },
   applyButton: {
-    marginLeft: 8,
+    backgroundColor: '#007AFF',
   },
   resetButtonText: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '500',
   },
   applyButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     color: 'white',
-    fontWeight: 'bold',
+    fontWeight: '500',
   },
   categoryContent: {
     flexDirection: 'row',

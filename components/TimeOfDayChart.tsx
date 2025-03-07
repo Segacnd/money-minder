@@ -80,14 +80,14 @@ export const TimeOfDayChart: React.FC<TimeOfDayChartProps> = ({
 
   return (
     <View style={styles.container}>
-      <ThemedText type="subtitle" style={styles.title}>
+      <ThemedText type="subtitle" style={[styles.title, { fontSize: 13 }]}>
         Распределение расходов по времени суток
       </ThemedText>
       
       <View style={[styles.chartContainer, {backgroundColor: colorScheme === 'dark' ? '#222' : '#f5f5f5'}]}>
         <PieChart
           data={pieChartData}
-          width={Dimensions.get('window').width - 40}
+          width={Dimensions.get('window').width - 12}
           height={220}
           chartConfig={{
             backgroundColor: backgroundColor,
@@ -126,10 +126,13 @@ const styles = StyleSheet.create({
   container: {
     marginVertical: 16,
     alignItems: 'center',
+    width: '100%',
   },
   title: {
     marginBottom: 16,
-    textAlign: 'center',
+    textAlign: 'left',
+    paddingHorizontal: 16,
+    width: '100%',
   },
   chartContainer: {
     borderRadius: 16,

@@ -1,6 +1,10 @@
+import { MaterialIcons } from '@expo/vector-icons';
+
+type MaterialIconName = keyof typeof MaterialIcons.glyphMap;
+
 export interface Category {
   name: string;
-  icon: string;
+  icon: MaterialIconName;
   color?: string;
 }
 
@@ -10,42 +14,42 @@ export interface Category {
 export const predefinedCategories: Category[] = [
   {
     name: 'Продукты',
-    icon: 'cart',
+    icon: 'shopping-cart',
     color: '#4CAF50', // Зеленый
   },
   {
     name: 'Транспорт',
-    icon: 'car',
+    icon: 'directions-car',
     color: '#2196F3', // Синий
   },
   {
     name: 'Жильё',
-    icon: 'house',
+    icon: 'home',
     color: '#9C27B0', // Фиолетовый
   },
   {
     name: 'Развлечения',
-    icon: 'film',
+    icon: 'movie',
     color: '#FF9800', // Оранжевый
   },
   {
     name: 'Здоровье',
-    icon: 'heart',
+    icon: 'favorite',
     color: '#E91E63', // Розовый
   },
   {
     name: 'Одежда',
-    icon: 'bag',
+    icon: 'shopping-bag',
     color: '#3F51B5', // Индиго
   },
   {
     name: 'Рестораны',
-    icon: 'fork.knife',
+    icon: 'restaurant',
     color: '#F44336', // Красный
   },
   {
     name: 'Путешествия',
-    icon: 'airplane',
+    icon: 'flight',
     color: '#00BCD4', // Голубой
   },
   {
@@ -55,12 +59,12 @@ export const predefinedCategories: Category[] = [
   },
   {
     name: 'Образование',
-    icon: 'book',
+    icon: 'school',
     color: '#795548', // Коричневый
   },
   {
     name: 'Другое',
-    icon: 'tag',
+    icon: 'label',
     color: '#607D8B', // Серо-синий
   },
 ]; 
