@@ -7,7 +7,7 @@ import { ExpenseForm } from '@/components/ExpenseForm';
 import { ExpenseFilters } from '@/components/ExpenseFilters';
 import { ExpenseSortSelector } from '@/components/ExpenseSortSelector';
 import { ExpensesList } from '@/components/ExpensesList';
-import { DailyLimitProgressBar } from '@/components/DailyLimitProgressBar';
+import { BudgetProgressContainer } from '@/components/BudgetProgressContainer';
 import { useExpenses } from '@/hooks/useExpenses';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
@@ -37,22 +37,18 @@ const DynamicIslandIcon = memo(() => {
 });
 
 const ListHeader = memo(({ 
-  budgetData, 
   onAddPress, 
   sortOption, 
   onSortChange,
   filterOptions,
   onFiltersChange,
   onFiltersReset,
-  themeColors 
-}: any) => (
+  themeColors,
+  refreshKey
+}: any) => {
+  return (
   <>
-    {budgetData && (
-      <DailyLimitProgressBar 
-        remainingLimit={budgetData.remainingDailyLimit}
-        totalLimit={budgetData.dailyLimit}
-      />
-    )}
+    <BudgetProgressContainer forceRefresh={refreshKey} />
 
     <TouchableOpacity
       style={[styles.addButton, { borderColor: themeColors.tint }]}
@@ -79,7 +75,7 @@ const ListHeader = memo(({
       Расходы за сегодня
     </ThemedText>
   </>
-));
+)});
 
 export default function TabOneScreen() {
   const [showExpenseForm, setShowExpenseForm] = useState(false);
@@ -101,7 +97,10 @@ export default function TabOneScreen() {
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
-  const { budgetData, updateRemainingLimit } = useBudget();
+  const { budgetData, updateRemainingLimit, loadBudgetData } = useBudget();
+
+  // Создаем переменную для отслеживания обновлений бюджета
+  const [budgetRefreshKey, setBudgetRefreshKey] = useState(Date.now());
 
   const showSnackbar = useCallback(() => {
     Animated.timing(snackbarAnim, {
@@ -129,9 +128,19 @@ export default function TabOneScreen() {
   const handleDeleteExpense = useCallback(async (expense: Expense) => {
     setDeletedExpense(expense);
     await deleteExpense(expense.id, true);
+    
+    // Обновляем данные бюджета после удаления расхода
+    if (budgetData) {
+      await loadBudgetData();
+      // Обновляем ключ для принудительного обновления компонента бюджета через setTimeout
+      setTimeout(() => {
+        setBudgetRefreshKey(Date.now());
+      }, 100);
+    }
+    
     showSnackbar();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  }, [deleteExpense, showSnackbar]);
+  }, [deleteExpense, showSnackbar, budgetData, loadBudgetData, setBudgetRefreshKey]);
 
   const handleUndoDelete = useCallback(async () => {
     if (deletedExpense) {
@@ -142,16 +151,45 @@ export default function TabOneScreen() {
         description: deletedExpense.description,
         icon: deletedExpense.icon,
       }, true);
+      
+      // Обновляем данные бюджета после восстановления расхода
+      if (budgetData) {
+        await updateRemainingLimit(deletedExpense.amount, deletedExpense);
+        await loadBudgetData();
+        // Обновляем ключ для принудительного обновления компонента бюджета через setTimeout
+        setTimeout(() => {
+          setBudgetRefreshKey(Date.now());
+        }, 100);
+      }
+      
       hideSnackbar();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-  }, [deletedExpense, addExpense]);
+  }, [deletedExpense, addExpense, budgetData, updateRemainingLimit, loadBudgetData, setBudgetRefreshKey]);
 
   const handleRefresh = async () => {
     Keyboard.dismiss();
     setRefreshing(true);
-    await loadExpenses(true);
-    setRefreshing(false);
+    
+    try {
+      // Загружаем расходы
+      await loadExpenses(true);
+      
+      // Загружаем данные бюджета
+      if (budgetData) {
+        await loadBudgetData();
+        // Обновляем ключ для принудительного обновления компонента бюджета через setTimeout
+        setTimeout(() => {
+          setBudgetRefreshKey(Date.now());
+        }, 100);
+      }
+      
+      console.log('Данные успешно обновлены при обновлении экрана');
+    } catch (error) {
+      console.error('Ошибка при обновлении данных:', error);
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   useEffect(() => {
@@ -160,20 +198,58 @@ export default function TabOneScreen() {
 
   const handleAddExpense = async (expense: Omit<Expense, 'id' | 'timestamp'>) => {
     try {
+      // Скрываем форму перед длительными операциями
       setShowExpenseForm(false);
-      await addExpense(expense, true);
       
-      // Обновляем оставшийся дневной лимит
+      // Добавляем новый расход
+      const newExpense = await addExpense(expense, true);
+      
+      console.log('Расход добавлен успешно');
+      
+      // Обновляем оставшийся дневной лимит и убеждаемся, что данные обновились
       if (budgetData) {
-        await updateRemainingLimit(expense.amount);
+        console.log('Обновляем дневной лимит...');
+        
+        try {
+          // Обновляем лимит с учетом расхода
+          await updateRemainingLimit(expense.amount, expense);
+          
+          // Загружаем обновленные данные бюджета
+          await loadBudgetData();
+          console.log('Данные бюджета обновлены успешно');
+          
+          // Обновляем счетчик для вызова обновления в BudgetProgressContainer
+          // Используем setTimeout, чтобы не создавать бесконечный цикл обновлений
+          setTimeout(() => {
+            setBudgetRefreshKey(Date.now());
+          }, 100);
+        } catch (error) {
+          console.error('Ошибка при обновлении бюджета:', error);
+        }
       }
+      
+      // Даем обратную связь пользователю
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
       console.error('Ошибка при добавлении расхода:', error);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
   // Компонент для нижнего отступа
   const BottomSpacer = () => <View style={styles.bottomSpacer} />;
+
+  // Мемоизируем данные для ListHeader компонента
+  const listHeaderProps = useMemo(() => ({
+    onAddPress: () => setShowExpenseForm(true),
+    sortOption,
+    onSortChange: changeSortOption,
+    filterOptions,
+    onFiltersChange: changeFilters,
+    onFiltersReset: () => changeFilters({}),
+    themeColors,
+    refreshKey: budgetRefreshKey
+  }), [sortOption, filterOptions, themeColors, changeSortOption, changeFilters, budgetRefreshKey]);
 
   return (
     <View style={styles.container}>
@@ -216,18 +292,7 @@ export default function TabOneScreen() {
             />
           )}
           keyExtractor={(item) => item.id}
-          ListHeaderComponent={
-            <ListHeader
-              budgetData={budgetData}
-              onAddPress={() => setShowExpenseForm(true)}
-              sortOption={sortOption}
-              onSortChange={changeSortOption}
-              filterOptions={filterOptions}
-              onFiltersChange={changeFilters}
-              onFiltersReset={() => changeFilters({})}
-              themeColors={themeColors}
-            />
-          }
+          ListHeaderComponent={<ListHeader {...listHeaderProps} />}
           ListFooterComponent={BottomSpacer}
           contentContainerStyle={styles.scrollContent}
           refreshControl={
@@ -288,18 +353,23 @@ export default function TabOneScreen() {
               setShowExpenseForm(false);
             }}
           >
-            <TouchableOpacity 
-              activeOpacity={1} 
-              onPress={(e) => e.stopPropagation()} 
-              style={styles.modalContentWrapper}
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.keyboardAvoidingModal}
             >
-              <ThemedView style={styles.modalContent}>
-                <ExpenseForm
-                  onSubmit={handleAddExpense}
-                  onCancel={() => setShowExpenseForm(false)}
-                />
-              </ThemedView>
-            </TouchableOpacity>
+              <TouchableOpacity 
+                activeOpacity={1} 
+                onPress={(e) => e.stopPropagation()} 
+                style={styles.modalContentWrapper}
+              >
+                <ThemedView style={styles.modalContent}>
+                  <ExpenseForm
+                    onSubmit={handleAddExpense}
+                    onCancel={() => setShowExpenseForm(false)}
+                  />
+                </ThemedView>
+              </TouchableOpacity>
+            </KeyboardAvoidingView>
           </TouchableOpacity>
         </Modal>
       </KeyboardAvoidingView>
@@ -361,7 +431,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
-    alignItems: 'center',
+  },
+  keyboardAvoidingModal: {
+    width: '100%',
   },
   modalContentWrapper: {
     width: '100%',
@@ -370,6 +442,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     width: '100%',
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
   },
   bottomSpacer: {
     height: 80,
@@ -416,5 +489,18 @@ const styles = StyleSheet.create({
     color: '#4794eb',
     fontWeight: 'bold',
     marginLeft: 16,
+  },
+  noBudgetMessage: {
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(33, 150, 243, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(33, 150, 243, 0.3)',
+  },
+  noBudgetText: {
+    textAlign: 'center',
+    opacity: 0.8,
+    fontSize: 14,
   },
 });

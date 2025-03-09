@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Component, ErrorInfo, ReactNode } from 'react';
 import { StyleSheet, View, ActivityIndicator, ScrollView, RefreshControl, TouchableOpacity, Platform, Modal, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useExpenses } from '@/hooks/useExpenses';
+import { useBudget } from '@/hooks/useBudget';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Expense } from '@/types/expenses';
@@ -13,7 +14,9 @@ import { ExpensesPieChart } from '@/components/analytics/ExpensesPieChart';
 import { ExpensesBarChart } from '@/components/analytics/ExpensesBarChart';
 import { KeyMetrics } from '@/components/analytics/KeyMetrics';
 import { DetailedAnalytics } from '@/components/analytics/DetailedAnalytics';
+import { UnusedFundsStats } from '@/components/analytics/UnusedFundsStats';
 import { SegmentedControl } from '@/components/SegmentedControl';
+import { OverLimitChart } from '@/components/analytics/OverLimitChart';
 
 // Типы для данных аналитики
 interface AnalyticsData {
@@ -24,6 +27,43 @@ interface AnalyticsData {
     evening: number;
     night: number;
   };
+}
+
+// Добавляем интерфейсы для компонента ErrorBoundary
+interface ErrorBoundaryProps {
+  children: ReactNode;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+}
+
+// Обновленный компонент ErrorBoundary с корректными типами
+class ChartErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(_error: Error): ErrorBoundaryState {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
+    console.log('Victory chart error suppressed:', error);
+  }
+
+  render(): ReactNode {
+    if (this.state.hasError) {
+      return (
+        <ThemedView style={styles.errorContainer}>
+          <ThemedText>Не удалось загрузить график</ThemedText>
+        </ThemedView>
+      );
+    }
+
+    return this.props.children;
+  }
 }
 
 export default function AnalyticsScreen() {
@@ -37,6 +77,8 @@ export default function AnalyticsScreen() {
     changeDateRange,
     sortOption
   } = useExpenses();
+  
+  const { budgetData, loadBudgetData } = useBudget();
   
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData>({
     total: 0,
@@ -64,24 +106,21 @@ export default function AnalyticsScreen() {
     setDisplayEndDate(dateRange.endDate);
   }, [dateRange]);
 
-  // Обработчик для обновления данных при потягивании вниз
-  const handleRefresh = async () => {
-    Keyboard.dismiss();
-    setRefreshing(true);
-    await loadExpenses(false);
-    setRefreshing(false);
-  };
-
-  // Обновляем данные каждый раз при фокусе на странице
+  // Загрузка данных при фокусе на экране
   useFocusEffect(
     useCallback(() => {
-      console.log('Аналитика: обновление данных при фокусе');
       loadExpenses(false);
-      return () => {
-        // Функция очистки, если потребуется
-      };
-    }, [loadExpenses])
+      loadBudgetData();
+    }, [])
   );
+
+  // Обработчик обновления данных
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadExpenses(false);
+    await loadBudgetData();
+    setRefreshing(false);
+  };
 
   // Обработка данных для аналитики
   useEffect(() => {
@@ -181,19 +220,33 @@ export default function AnalyticsScreen() {
         style={styles.scrollView} 
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[themeColors.tint]}
+            tintColor={themeColors.tint}
+          />
+        }
       >
         <View style={styles.content}>
           <ThemedView style={styles.card}>
-            <KeyMetrics
-              expenses={expenses}
-              previousPeriodExpenses={previousPeriodExpenses}
-            />
+            <ChartErrorBoundary>
+              <KeyMetrics
+                expenses={expenses}
+                previousPeriodExpenses={previousPeriodExpenses}
+                startDate={dateRange.startDate}
+                endDate={dateRange.endDate}
+              />
+            </ChartErrorBoundary>
           </ThemedView>
 
           <View style={styles.section}>
             <ThemedText style={styles.sectionTitle}>Распределение расходов</ThemedText>
             <ThemedView style={styles.card}>
-              <ExpensesPieChart expenses={expenses} />
+              <ChartErrorBoundary>
+                <ExpensesPieChart expenses={expenses} />
+              </ChartErrorBoundary>
             </ThemedView>
           </View>
 
@@ -209,10 +262,12 @@ export default function AnalyticsScreen() {
                   }}
                   style={styles.segmentedControl}
                 />
-                <ExpensesBarChart
-                  expenses={expenses}
-                  period={selectedPeriod}
-                />
+                <ChartErrorBoundary>
+                  <ExpensesBarChart
+                    expenses={expenses}
+                    period={selectedPeriod}
+                  />
+                </ChartErrorBoundary>
               </View>
             </ThemedView>
           </View>
@@ -220,9 +275,33 @@ export default function AnalyticsScreen() {
           <View style={styles.section}>
             <ThemedText style={styles.sectionTitle}>Детальный анализ</ThemedText>
             <ThemedView style={styles.card}>
-              <DetailedAnalytics expenses={expenses} />
+              <ChartErrorBoundary>
+                <DetailedAnalytics expenses={expenses} />
+              </ChartErrorBoundary>
             </ThemedView>
           </View>
+
+          {/* Новый компонент статистики неиспользованных средств */}
+          {budgetData && (
+            <ThemedView style={styles.card}>
+              <ChartErrorBoundary>
+                <UnusedFundsStats 
+                  savedUnusedFunds={budgetData.savedUnusedFunds || 0}
+                  unusedFundsYesterday={budgetData.unusedFundsYesterday}
+                  monthlyIncome={budgetData.monthlyIncome}
+                />
+              </ChartErrorBoundary>
+            </ThemedView>
+          )}
+
+          {/* Новый компонент статистики превышений лимита */}
+          {budgetData && budgetData.overLimitHistory && budgetData.overLimitHistory.length > 0 && (
+            <ThemedView style={styles.card}>
+              <ChartErrorBoundary>
+                <OverLimitChart history={budgetData.overLimitHistory} />
+              </ChartErrorBoundary>
+            </ThemedView>
+          )}
         </View>
       </ScrollView>
     </ThemedView>
@@ -287,5 +366,12 @@ const styles = StyleSheet.create({
   },
   segmentedControl: {
     marginBottom: 16,
+  },
+  errorContainer: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 150,
   },
 }); 

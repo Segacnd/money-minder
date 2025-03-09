@@ -20,7 +20,13 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { predefinedCategories } from '@/constants/Categories';
 
 interface ExpenseFormProps {
-  onSubmit: (data: { amount: number; category: string; description?: string }) => void;
+  onSubmit: (data: { 
+    amount: number; 
+    category: string; 
+    description?: string;
+    title: string;
+    icon: string;
+  }) => void;
   onCancel: () => void;
 }
 
@@ -35,22 +41,46 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, onCancel }) 
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
+
+  // Находим иконку для выбранной категории
+  const getCategoryIcon = (categoryName: string): string => {
+    const categoryEntry = predefinedCategories.find(c => c.name === categoryName);
+    return categoryEntry?.icon || 'help-outline';
+  };
+  
+  // Конвертирует строку с числом в формате с запятой или точкой в число
+  const parseAmount = (value: string): number => {
+    // Заменяем запятую на точку для корректного преобразования
+    const normalizedValue = value.replace(',', '.');
+    return Number(normalizedValue);
+  };
+
+  // Проверяет, является ли строка корректным числом (с учетом запятой)
+  const isValidAmount = (value: string): boolean => {
+    const normalizedValue = value.replace(',', '.');
+    const num = Number(normalizedValue);
+    return !isNaN(num) && num > 0;
+  };
   
   const handleSubmit = () => {
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
-      setError('Пожалуйста, введите корректную сумму');
+    setError(null);
+    
+    if (!amount || !isValidAmount(amount)) {
+      setError('Пожалуйста, введите корректную сумму больше нуля');
       return;
     }
     
     if (!category) {
-      setError('Пожалуйста, укажите категорию');
+      setError('Пожалуйста, выберите категорию');
       return;
     }
     
     onSubmit({
-      amount: Number(amount),
+      amount: parseAmount(amount),
       category,
-      description: description || undefined,
+      description: description.trim() || undefined,
+      title: category, // Используем категорию как заголовок
+      icon: getCategoryIcon(category)
     });
     
     setAmount('');
@@ -80,150 +110,160 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, onCancel }) 
   };
   
   return (
-    <TouchableWithoutFeedback onPress={dismissKeyboard}>
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardAvoidingView}
-      >
-        <View style={styles.container}>
-          <ThemedText type="title" style={styles.title}>
-            Добавить расход
-          </ThemedText>
+    <View style={styles.container}>
+      <ThemedText type="title" style={styles.title}>
+        Добавить расход
+      </ThemedText>
 
-          <View style={styles.formGroup}>
-            <ThemedText>Сумма</ThemedText>
-            <TextInput
-              style={[styles.input, { color: themeColors.text }]}
-              keyboardType="numeric"
-              value={amount}
-              onChangeText={setAmount}
-              placeholder="Введите сумму"
-              placeholderTextColor={themeColors.text + '80'}
-            />
-          </View>
+      <View style={styles.formGroup}>
+        <ThemedText style={styles.label}>Сумма</ThemedText>
+        <TextInput
+          style={[styles.input, { color: themeColors.text }]}
+          keyboardType="numeric"
+          placeholder="Введите сумму"
+          placeholderTextColor={themeColors.text + '80'}
+          value={amount}
+          onChangeText={setAmount}
+          onBlur={() => {
+            // Валидация при потере фокуса
+            if (amount && !isValidAmount(amount)) {
+              setError('Пожалуйста, введите корректную сумму больше нуля');
+            }
+          }}
+        />
+      </View>
 
-          <View style={styles.formGroup}>
-            <ThemedText>Категория</ThemedText>
-            <View style={styles.categoryInputContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.categorySelector,
-                  { borderColor: themeColors.text + '30' }
-                ]}
-                onPress={() => {
-                  setShowCategoryModal(true);
-                  setIsAddingNewCategory(false);
-                }}
-              >
-                {category ? (
-                  <View style={styles.selectedCategory}>
-                    <MaterialIcons
-                      name={predefinedCategories.find(c => c.name === category)?.icon || 'label'}
-                      size={20}
-                      color={predefinedCategories.find(c => c.name === category)?.color || themeColors.tint}
-                    />
-                    <ThemedText>{category}</ThemedText>
-                  </View>
-                ) : (
-                  <ThemedText style={{ color: themeColors.text + '80' }}>
-                    Выберите категорию
-                  </ThemedText>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.addCategoryButton, { borderColor: themeColors.text + '30' }]}
-                onPress={() => {
-                  setShowCategoryModal(true);
-                  setIsAddingNewCategory(true);
-                }}
-              >
-                <MaterialIcons name="add" size={20} color={themeColors.tint} />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.formGroup}>
-            <ThemedText>Комментарий</ThemedText>
-            <TextInput
-              style={[styles.input, { color: themeColors.text }]}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Введите комментарий (необязательно)"
-              placeholderTextColor={themeColors.text + '80'}
-            />
-          </View>
-
-          {error && (
-            <ThemedText style={styles.errorText}>
-              {error}
-            </ThemedText>
-          )}
-
-          <View style={styles.buttonContainer}>
-            <TouchableOpacity
-              style={[styles.button, styles.cancelButton]}
-              onPress={onCancel}
-            >
-              <ThemedText style={{ color: '#fff' }}>
-                Отмена
+      <View style={styles.formGroup}>
+        <ThemedText style={styles.label}>Категория</ThemedText>
+        <View style={styles.categoryInputContainer}>
+          <TouchableOpacity
+            style={[
+              styles.categorySelector,
+              { borderColor: themeColors.text + '30' }
+            ]}
+            onPress={() => {
+              setShowCategoryModal(true);
+              setIsAddingNewCategory(false);
+            }}
+          >
+            {category ? (
+              <View style={styles.selectedCategory}>
+                <MaterialIcons
+                  name={predefinedCategories.find(c => c.name === category)?.icon || 'label'}
+                  size={20}
+                  color={predefinedCategories.find(c => c.name === category)?.color || themeColors.tint}
+                />
+                <ThemedText>{category}</ThemedText>
+              </View>
+            ) : (
+              <ThemedText style={{ color: themeColors.text + '80' }}>
+                Выберите категорию
               </ThemedText>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.button, styles.submitButton]}
-              onPress={handleSubmit}
-            >
-              <ThemedText style={{ color: '#fff' }}>
-                Добавить
-              </ThemedText>
-            </TouchableOpacity>
-          </View>
+            )}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.addCategoryButton, { borderColor: themeColors.text + '30' }]}
+            onPress={() => {
+              setShowCategoryModal(true);
+              setIsAddingNewCategory(true);
+            }}
+          >
+            <MaterialIcons name="add" size={20} color="#007AFF" />
+          </TouchableOpacity>
         </View>
+      </View>
 
-        <Modal
-          visible={showCategoryModal}
-          transparent={true}
-          animationType="slide"
-          onRequestClose={() => setShowCategoryModal(false)}
+      <View style={styles.formGroup}>
+        <ThemedText>Комментарий</ThemedText>
+        <TextInput
+          style={[styles.input, { color: themeColors.text }]}
+          value={description}
+          onChangeText={setDescription}
+          placeholder="Введите комментарий (необязательно)"
+          placeholderTextColor={themeColors.text + '80'}
+        />
+      </View>
+
+      {error && (
+        <ThemedText style={styles.errorText}>
+          {error}
+        </ThemedText>
+      )}
+
+      <View style={styles.buttonContainer}>
+        <TouchableOpacity
+          style={[styles.button, styles.cancelButton]}
+          onPress={onCancel}
         >
-          <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
-            <View style={styles.modalOverlay}>
-              <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
-                <ThemedView style={styles.modalContent}>
-                  <View style={styles.modalHeader}>
-                    <ThemedText type="subtitle" style={styles.modalTitle}>
-                      {isAddingNewCategory ? 'Новая категория' : 'Выберите категорию'}
-                    </ThemedText>
-                    <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
-                      <MaterialIcons name="close" size={20} color={themeColors.text} />
+          <ThemedText style={{ color: '#fff' }}>
+            Отмена
+          </ThemedText>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.button, styles.submitButton]}
+          onPress={handleSubmit}
+        >
+          <ThemedText style={{ color: '#fff' }}>
+            Добавить
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={showCategoryModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowCategoryModal(false)}
+      >
+        <TouchableWithoutFeedback onPress={() => setShowCategoryModal(false)}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={e => e.stopPropagation()}>
+              <ThemedView style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <ThemedText type="subtitle" style={styles.modalTitle}>
+                    {isAddingNewCategory ? 'Новая категория' : 'Выберите категорию'}
+                  </ThemedText>
+                  <TouchableOpacity onPress={() => setShowCategoryModal(false)}>
+                    <MaterialIcons name="close" size={20} color={themeColors.text} />
+                  </TouchableOpacity>
+                </View>
+
+                {isAddingNewCategory ? (
+                  <View style={styles.newCategoryContainer}>
+                    <TextInput
+                      style={[styles.input, { color: themeColors.text, flex: 1 }]}
+                      value={newCategory}
+                      onChangeText={setNewCategory}
+                      placeholder="Введите название категории"
+                      placeholderTextColor={themeColors.text + '80'}
+                      autoFocus
+                    />
+                    <TouchableOpacity
+                      style={[styles.button, styles.submitButton, { marginLeft: 8 }]}
+                      onPress={handleAddNewCategory}
+                    >
+                      <ThemedText style={{ color: '#fff' }}>Добавить</ThemedText>
                     </TouchableOpacity>
                   </View>
-
-                  {isAddingNewCategory ? (
-                    <View style={styles.newCategoryContainer}>
-                      <TextInput
-                        style={[styles.input, { color: themeColors.text, flex: 1 }]}
-                        value={newCategory}
-                        onChangeText={setNewCategory}
-                        placeholder="Введите название категории"
-                        placeholderTextColor={themeColors.text + '80'}
-                        autoFocus
-                      />
-                      <TouchableOpacity
-                        style={[styles.button, styles.submitButton, { marginLeft: 8 }]}
-                        onPress={handleAddNewCategory}
-                      >
-                        <ThemedText style={{ color: '#fff' }}>Добавить</ThemedText>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      style={styles.addCustomCategoryButton}
+                      onPress={() => setIsAddingNewCategory(true)}
+                    >
+                      <MaterialIcons name="add" size={24} color="#007AFF" />
+                      <ThemedText style={{ color: "#007AFF", marginLeft: 8 }}>
+                        Добавить свою категорию
+                      </ThemedText>
+                    </TouchableOpacity>
                     <ScrollView style={styles.categoriesList}>
                       {predefinedCategories.map((cat) => (
                         <TouchableOpacity
                           key={cat.name}
                           style={[
                             styles.categoryOption,
-                            category === cat.name && { backgroundColor: themeColors.tint + '20' }
+                            category === cat.name && { backgroundColor: "#007AFF20" }
                           ]}
                           onPress={() => handleSelectCategory(cat.name)}
                         >
@@ -231,66 +271,60 @@ export const ExpenseForm: React.FC<ExpenseFormProps> = ({ onSubmit, onCancel }) 
                             <MaterialIcons
                               name={cat.icon}
                               size={20}
-                              color={cat.color || themeColors.tint}
+                              color={cat.color || "#007AFF"}
                             />
                             <ThemedText style={styles.categoryOptionText}>
                               {cat.name}
                             </ThemedText>
                           </View>
                           {category === cat.name && (
-                            <MaterialIcons
-                              name="check"
-                              size={20}
-                              color={themeColors.tint}
-                            />
+                            <MaterialIcons name="check" size={20} color="#007AFF" />
                           )}
                         </TouchableOpacity>
                       ))}
                     </ScrollView>
-                  )}
-                </ThemedView>
-              </TouchableWithoutFeedback>
-            </View>
-          </TouchableWithoutFeedback>
-        </Modal>
-      </KeyboardAvoidingView>
-    </TouchableWithoutFeedback>
+                  </>
+                )}
+              </ThemedView>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+    </View>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  keyboardAvoidingView: {
-    width: '100%',
-  },
   container: {
     padding: 16,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
   },
   title: {
-    marginBottom: 16,
+    fontSize: 20,
+    marginBottom: 20,
   },
   formGroup: {
     marginBottom: 16,
+  },
+  label: {
+    marginBottom: 8,
   },
   input: {
     borderWidth: 1,
     borderColor: 'rgba(150, 150, 150, 0.3)',
     borderRadius: 8,
     padding: 12,
-    marginTop: 4,
   },
   categoryInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 8,
   },
   categorySelector: {
     flex: 1,
     borderWidth: 1,
     borderRadius: 8,
     padding: 12,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   selectedCategory: {
     flexDirection: 'row',
@@ -298,30 +332,31 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   addCategoryButton: {
-    width: 44,
-    height: 44,
     borderWidth: 1,
     borderRadius: 8,
-    alignItems: 'center',
+    width: 44,
+    height: 44,
     justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
   },
   errorText: {
-    color: '#FF3B30',
+    color: 'red',
     marginBottom: 16,
   },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    marginTop: 8,
   },
   button: {
+    flex: 1,
     padding: 14,
     borderRadius: 8,
     alignItems: 'center',
-    flex: 1,
   },
   cancelButton: {
-    backgroundColor: '#FF3B30',
+    backgroundColor: '#666',
     marginRight: 8,
   },
   submitButton: {
@@ -330,12 +365,12 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   modalContent: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
     maxHeight: '80%',
   },
   modalHeader: {
@@ -351,11 +386,12 @@ const styles = StyleSheet.create({
   },
   categoriesList: {
     padding: 16,
+    maxHeight: 400,
   },
   categoryOption: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -364,14 +400,21 @@ const styles = StyleSheet.create({
   categoryOptionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
   },
   categoryOptionText: {
+    marginLeft: 12,
     fontSize: 16,
   },
   newCategoryContainer: {
     padding: 16,
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  addCustomCategoryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(150, 150, 150, 0.3)',
   },
 }); 

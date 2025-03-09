@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, View, useWindowDimensions, LogBox } from 'react-native';
 import { VictoryBar, VictoryChart, VictoryAxis, VictoryTheme } from 'victory-native';
 import { ThemedText } from '../ThemedText';
 import { Expense } from '@/types/expenses';
@@ -9,6 +9,11 @@ interface ExpensesBarChartProps {
   expenses: Expense[];
   period: 'day' | 'week' | 'month';
 }
+
+// Игнорируем предупреждение о defaultProps
+LogBox.ignoreLogs([
+  'Support for defaultProps will be removed from function components'
+]);
 
 export const ExpensesBarChart = ({ expenses, period }: ExpensesBarChartProps) => {
   const { width } = useWindowDimensions();
@@ -96,6 +101,7 @@ export const ExpensesBarChart = ({ expenses, period }: ExpensesBarChartProps) =>
             }}
             cornerRadius={{ top: 4 }}
             barRatio={0.8}
+          
           />
         </VictoryChart>
       </View>

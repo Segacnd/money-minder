@@ -76,9 +76,11 @@ const ExpenseItem = memo(({
               </View>
             </View>
             <View style={styles.expenseMain}>
-              <ThemedText style={styles.expenseTitle} numberOfLines={1}>
-                {expense.title}
-              </ThemedText>
+              {expense.title !== category.name && (
+                <ThemedText style={styles.expenseTitle} numberOfLines={1}>
+                  {expense.title}
+                </ThemedText>
+              )}
             </View>
             <View style={[styles.amountContainer, { backgroundColor: `${category.color}20` }]}>
               <ThemedText style={[styles.amountText, { color: category.color }]}>

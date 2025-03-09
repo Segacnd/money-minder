@@ -1,11 +1,58 @@
 /**
- * Форматирование числа в денежный формат с символом валюты
+ * Форматирование числа в денежный формат
  * @param amount Числовое значение суммы
- * @param currency Валюта (по умолчанию - рубль)
- * @returns Отформатированная строка с суммой и символом валюты
+ * @param currency Валюта (по умолчанию - BYN)
+ * @returns Отформатированная строка с суммой (без символа валюты)
  */
 export function formatCurrency(amount: number, currency: string = 'BYN'): string {
-  return `${amount.toFixed(2)} ${currency}`;
+  // Проверка на NaN и другие некорректные значения
+  if (isNaN(amount) || !isFinite(amount)) {
+    return '0.00';
+  }
+  
+  // Округляем до 2 знаков после запятой и форматируем
+  return Number(amount).toFixed(2);
+}
+
+/**
+ * Безопасное форматирование любого значения в строку.
+ * Гарантирует, что результат всегда будет строкой, даже если входное 
+ * значение undefined, null или некорректное.
+ * 
+ * @param value Любое значение для конвертации в строку
+ * @param defaultValue Значение по умолчанию, если входное значение undefined или null
+ * @returns Безопасная строка
+ */
+export function safeString(value: any, defaultValue: string = ''): string {
+  if (value === undefined || value === null) {
+    return defaultValue;
+  }
+  
+  try {
+    // Если это объект Date
+    if (value instanceof Date) {
+      return value.toLocaleDateString('ru-RU');
+    }
+    
+    // Если это число
+    if (typeof value === 'number') {
+      if (isNaN(value) || !isFinite(value)) {
+        return defaultValue;
+      }
+      return value.toString();
+    }
+    
+    // Если это уже строка
+    if (typeof value === 'string') {
+      return value;
+    }
+    
+    // Для всех остальных случаев
+    return String(value);
+  } catch (error) {
+    console.error('Ошибка при преобразовании в строку:', error);
+    return defaultValue;
+  }
 }
 
 /**

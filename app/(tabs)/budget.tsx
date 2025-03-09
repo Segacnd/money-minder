@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Modal, Keyboard } from 'react-native';
-import { ThemedText } from '@/components/ThemedText';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Alert, Modal, Keyboard, Text } from 'react-native';
+import { ThemedText, CurrencyText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useBudget } from '@/hooks/useBudget';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/formatters';
 import { BudgetForm } from '@/components/BudgetForm';
+import { OverLimitHistoryModal } from '@/components/OverLimitHistoryModal';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function BudgetScreen() {
   const {
@@ -18,6 +20,7 @@ export default function BudgetScreen() {
     setSavingsGoal,
     resetBudget,
     loadBudgetData,
+    getOverLimitHistory,
   } = useBudget();
 
   const [income, setIncome] = useState('');
@@ -27,6 +30,7 @@ export default function BudgetScreen() {
   const [expenseAmount, setExpenseAmount] = useState('');
   const [savingsAmount, setSavingsAmount] = useState('');
   const [showForm, setShowForm] = useState(false);
+  const [showOverLimitHistory, setShowOverLimitHistory] = useState(false);
 
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
@@ -71,9 +75,22 @@ export default function BudgetScreen() {
   };
 
   const handleCloseForm = async () => {
+    console.log('[DEBUG] handleCloseForm вызван');
     Keyboard.dismiss();
     setShowForm(false);
-    await loadBudgetData(); // Перезагружаем данные после закрытия формы
+    
+    // Перезагружаем данные после закрытия формы
+    try {
+      console.log('[DEBUG] Начинаем загрузку данных бюджета в handleCloseForm');
+      await loadBudgetData();
+      console.log('[DEBUG] Данные бюджета успешно загружены в handleCloseForm');
+    } catch (error) {
+      console.error('[DEBUG] Ошибка при загрузке данных бюджета в handleCloseForm:', error);
+    }
+  };
+
+  const handleShowOverLimitHistory = () => {
+    setShowOverLimitHistory(true);
   };
 
   if (loading) {
@@ -107,13 +124,13 @@ export default function BudgetScreen() {
               <View style={styles.infoRow}>
                 <ThemedText>Месячный доход:</ThemedText>
                 <ThemedText style={styles.value}>
-                  {formatCurrency(budgetData.monthlyIncome)}
+                  <CurrencyText amount={budgetData.monthlyIncome} />
                 </ThemedText>
               </View>
               <View style={styles.infoRow}>
                 <ThemedText>Дата зарплаты:</ThemedText>
                 <ThemedText style={styles.value}>
-                  {new Date(budgetData.salaryDate).toLocaleDateString('ru-RU')}
+                  <Text>{new Date(budgetData.salaryDate).toLocaleDateString('ru-RU')}</Text>
                 </ThemedText>
               </View>
             </View>
@@ -124,16 +141,14 @@ export default function BudgetScreen() {
                 <View key={expense.id} style={styles.infoRow}>
                   <ThemedText>{expense.title}:</ThemedText>
                   <ThemedText style={styles.value}>
-                    {formatCurrency(expense.amount)}
+                    <CurrencyText amount={expense.amount} />
                   </ThemedText>
                 </View>
               ))}
               <View style={styles.infoRow}>
                 <ThemedText>Всего критических расходов:</ThemedText>
                 <ThemedText style={styles.value}>
-                  {formatCurrency(
-                    budgetData.criticalExpenses.reduce((sum, exp) => sum + exp.amount, 0)
-                  )}
+                  <CurrencyText amount={budgetData.criticalExpenses.reduce((sum, exp) => sum + exp.amount, 0)} />
                 </ThemedText>
               </View>
             </View>
@@ -143,7 +158,7 @@ export default function BudgetScreen() {
               <View style={styles.infoRow}>
                 <ThemedText>Цель по накоплениям:</ThemedText>
                 <ThemedText style={styles.value}>
-                  {formatCurrency(budgetData.savingsGoal)}
+                  <CurrencyText amount={budgetData.savingsGoal} />
                 </ThemedText>
               </View>
             </View>
@@ -153,15 +168,46 @@ export default function BudgetScreen() {
               <View style={styles.infoRow}>
                 <ThemedText>Дневной лимит:</ThemedText>
                 <ThemedText style={[styles.value, { color: themeColors.tint }]}>
-                  {formatCurrency(budgetData.dailyLimit)}
+                  <CurrencyText amount={budgetData.dailyLimit} />
                 </ThemedText>
               </View>
               <View style={styles.infoRow}>
                 <ThemedText>Осталось на сегодня:</ThemedText>
-                <ThemedText style={[styles.value, { color: themeColors.tint }]}>
-                  {formatCurrency(budgetData.remainingDailyLimit)}
+                <ThemedText 
+                  style={[
+                    styles.value, 
+                    { 
+                      color: budgetData.remainingDailyLimit < 0 ? '#FF3B30' : themeColors.tint 
+                    }
+                  ]}
+                >
+                  <CurrencyText amount={budgetData.remainingDailyLimit} />
                 </ThemedText>
               </View>
+              {budgetData.overLimitAmount && budgetData.overLimitAmount > 0 && (
+                <View style={styles.infoRow}>
+                  <ThemedText>Превышение лимита:</ThemedText>
+                  <ThemedText style={[styles.value, { color: '#FF3B30' }]}>
+                    <CurrencyText amount={budgetData.overLimitAmount} />
+                  </ThemedText>
+                </View>
+              )}
+              
+              {budgetData.overLimitHistory && budgetData.overLimitHistory.length > 0 && (
+                <TouchableOpacity 
+                  style={styles.detailsButton}
+                  onPress={handleShowOverLimitHistory}
+                >
+                  <ThemedText style={styles.detailsButtonText}>
+                    <Text>Подробная история превышений</Text>
+                  </ThemedText>
+                  <Ionicons 
+                    name="chevron-forward" 
+                    size={16} 
+                    color={themeColors.text} 
+                  />
+                </TouchableOpacity>
+              )}
             </View>
 
             <TouchableOpacity
@@ -169,7 +215,7 @@ export default function BudgetScreen() {
               onPress={() => setShowForm(true)}
             >
               <ThemedText style={{ color: colorScheme === 'dark' ? '#000' : '#fff' }}>
-                Изменить данные
+                <Text>Изменить данные</Text>
               </ThemedText>
             </TouchableOpacity>
 
@@ -177,7 +223,9 @@ export default function BudgetScreen() {
               style={[styles.resetButton, { borderColor: 'red' }]}
               onPress={handleReset}
             >
-              <ThemedText style={{ color: 'red' }}>Сбросить данные</ThemedText>
+              <ThemedText style={{ color: 'red' }}>
+                <Text>Сбросить данные</Text>
+              </ThemedText>
             </TouchableOpacity>
             
             <View style={styles.bottomSpacer} />
@@ -185,14 +233,14 @@ export default function BudgetScreen() {
         ) : (
           <View style={styles.emptyState}>
             <ThemedText style={styles.emptyStateText}>
-              Данные бюджета не заполнены
+              <Text>Данные бюджета не заполнены</Text>
             </ThemedText>
             <TouchableOpacity
               style={[styles.button, { backgroundColor: themeColors.tint }]}
               onPress={() => setShowForm(true)}
             >
               <ThemedText style={{ color: colorScheme === 'dark' ? '#000' : '#fff' }}>
-                Заполнить данные
+                <Text>Заполнить данные</Text>
               </ThemedText>
             </TouchableOpacity>
             
@@ -228,6 +276,12 @@ export default function BudgetScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <OverLimitHistoryModal 
+        visible={showOverLimitHistory}
+        onClose={() => setShowOverLimitHistory(false)}
+        history={budgetData?.overLimitHistory || []}
+      />
     </View>
   );
 }
@@ -305,5 +359,17 @@ const styles = StyleSheet.create({
   },
   bottomSpacer: {
     height: 80,
+  },
+  detailsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    marginTop: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(150, 150, 150, 0.3)',
+  },
+  detailsButtonText: {
+    opacity: 0.8,
   },
 }); 

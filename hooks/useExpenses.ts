@@ -155,8 +155,12 @@ export function useExpenses() {
           return b.amount - a.amount;
         case 'amount-asc':
           return a.amount - b.amount;
+        case 'category-asc':
+          return a.category.localeCompare(b.category);
+        case 'category-desc':
+          return b.category.localeCompare(a.category);
         default:
-          return 0;
+          return b.timestamp - a.timestamp; // По умолчанию сортируем по убыванию даты
       }
     });
     

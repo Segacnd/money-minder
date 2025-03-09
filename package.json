@@ -2,6 +2,7 @@
   "name": "money-minder",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "commentAboutVictory": "Для устранения предупреждения 'Support for defaultProps will be removed from function components' в victory-native следует выполнить обновление до более новой версии: npm install victory-native@latest или npm install victory-native@alpha. В текущей версии предупреждение можно игнорировать, так как оно не влияет на функциональность. Мы используем компонент ErrorBoundary как временное решение.",
   "scripts": {
     "start": "expo start",
     "reset-project": "node ./scripts/reset-project.js",

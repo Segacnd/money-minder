@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import { ThemedText } from './ThemedText';
+import { StyleSheet, View, TextInput, TouchableOpacity, Alert, KeyboardAvoidingView, Platform, TouchableWithoutFeedback, Keyboard, Modal, ScrollView, Pressable, Text } from 'react-native';
+import { ThemedText, CurrencyText } from './ThemedText';
+import { ThemedView } from './ThemedView';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { Colors } from '@/constants/Colors';
 import { useBudget } from '@/hooks/useBudget';
@@ -13,7 +14,7 @@ interface BudgetFormProps {
 }
 
 export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
-  const [income, setIncome] = useState(initialData?.monthlyIncome.toString() || '');
+  const [income, setIncome] = useState(initialData?.monthlyIncome ? initialData.monthlyIncome.toString() : '');
   const [salaryDate, setSalaryDate] = useState(
     initialData ? new Date(initialData.salaryDate) : new Date()
   );
@@ -24,41 +25,65 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
     initialData?.criticalExpenses || []
   );
   const [savingsGoal, setSavingsGoal] = useState(
-    initialData?.savingsGoal.toString() || ''
+    initialData?.savingsGoal ? initialData.savingsGoal.toString() : ''
   );
 
-  const { updateBudgetData } = useBudget();
+  const { updateBudgetData, updateRemainingLimitWithExistingExpenses } = useBudget();
   
   const colorScheme = useColorScheme();
   const themeColors = Colors[colorScheme ?? 'light'];
 
+  // Конвертирует строку с числом в формате с запятой или точкой в число
+  const parseAmount = (value: string): number => {
+    // Заменяем запятую на точку для корректного преобразования
+    const normalizedValue = value.replace(',', '.');
+    return Number(normalizedValue);
+  };
+
+  // Проверяет, является ли строка корректным числом (с учетом запятой)
+  const isValidAmount = (value: string): boolean => {
+    const normalizedValue = value.replace(',', '.');
+    const num = Number(normalizedValue);
+    return !isNaN(num) && num > 0;
+  };
+
   const handleSave = async () => {
-    if (!income || isNaN(Number(income))) {
+    console.log('[DEBUG] handleSave вызван');
+    
+    if (!income || !isValidAmount(income)) {
       Alert.alert('Ошибка', 'Введите корректную сумму дохода');
       return;
     }
 
-    if (!savingsGoal || isNaN(Number(savingsGoal))) {
+    if (!savingsGoal || !isValidAmount(savingsGoal)) {
       Alert.alert('Ошибка', 'Введите корректную сумму для накоплений');
       return;
     }
 
     try {
+      console.log('[DEBUG] Начинаем обновление данных бюджета в handleSave:', {
+        income: parseAmount(income),
+        savingsGoal: parseAmount(savingsGoal),
+        criticalExpenses: criticalExpenses.length
+      });
+      
       await updateBudgetData(
-        Number(income),
+        parseAmount(income),
         salaryDate,
         criticalExpenses,
-        Number(savingsGoal)
+        parseAmount(savingsGoal)
       );
+      
+      console.log('[DEBUG] Данные бюджета успешно обновлены в handleSave');
       onClose();
     } catch (error) {
-      console.error('Ошибка при сохранении данных:', error);
+      console.error('[DEBUG] Ошибка при сохранении данных в handleSave:', error);
       Alert.alert('Ошибка', 'Не удалось сохранить данные');
     }
   };
 
   const handleAddExpense = () => {
-    if (!expenseTitle || !expenseAmount || isNaN(Number(expenseAmount))) {
+    if (!expenseTitle || !expenseAmount || !isValidAmount(expenseAmount)) {
       Alert.alert('Ошибка', 'Заполните все поля корректно');
       return;
     }
@@ -66,7 +91,7 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
     const newExpense: CriticalExpense = {
       id: Date.now().toString(),
       title: expenseTitle,
-      amount: Number(expenseAmount),
+      amount: parseAmount(expenseAmount),
     };
 
     setCriticalExpenses([...criticalExpenses, newExpense]);
@@ -92,33 +117,39 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
         <View style={styles.container}>
           <View style={styles.header}>
             <ThemedText type="title" style={styles.title}>
-              {initialData ? 'Изменить бюджет' : 'Новый бюджет'}
+              <Text>{initialData ? 'Изменить бюджет' : 'Новый бюджет'}</Text>
             </ThemedText>
             <TouchableOpacity onPress={onClose}>
-              <ThemedText style={{ color: themeColors.tint }}>Закрыть</ThemedText>
+              <ThemedText style={{ color: themeColors.tint }}>
+                <Text>Закрыть</Text>
+              </ThemedText>
             </TouchableOpacity>
           </View>
 
           <View style={styles.section}>
-            <ThemedText>Месячный доход</ThemedText>
+            <ThemedText>
+              <Text>Месячный доход</Text>
+            </ThemedText>
             <TextInput
               style={[styles.input, { color: themeColors.text }]}
               value={income}
               onChangeText={setIncome}
-              placeholder="Введите сумму дохода"
+              placeholder="Введите сумму дохода (напр. 1500,50)"
               placeholderTextColor={themeColors.text + '80'}
               keyboardType="numeric"
             />
           </View>
 
           <View style={styles.section}>
-            <ThemedText>Дата зарплаты</ThemedText>
+            <ThemedText>
+              <Text>Дата зарплаты</Text>
+            </ThemedText>
             <TouchableOpacity
               onPress={() => setShowDatePicker(true)}
               style={styles.dateButton}
             >
               <ThemedText>
-                {salaryDate.toLocaleDateString('ru-RU')}
+                <Text>{salaryDate.toLocaleDateString('ru-RU')}</Text>
               </ThemedText>
             </TouchableOpacity>
 
@@ -136,17 +167,25 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
           </View>
 
           <View style={styles.section}>
-            <ThemedText>Критические расходы</ThemedText>
+            <ThemedText>
+              <Text>Критические расходы</Text>
+            </ThemedText>
             {criticalExpenses.map((expense) => (
               <View key={expense.id} style={styles.expenseItem}>
-                <ThemedText>{expense.title}</ThemedText>
+                <ThemedText>
+                  <Text>{expense.title}</Text>
+                </ThemedText>
                 <View style={styles.expenseItemRight}>
-                  <ThemedText>{expense.amount} Br</ThemedText>
+                  <ThemedText>
+                    <CurrencyText amount={expense.amount} />
+                  </ThemedText>
                   <TouchableOpacity
                     onPress={() => handleRemoveExpense(expense.id)}
                     style={styles.deleteButton}
                   >
-                    <ThemedText style={{ color: 'red' }}>✕</ThemedText>
+                    <ThemedText style={{ color: 'red' }}>
+                      <Text>✕</Text>
+                    </ThemedText>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -168,7 +207,7 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
                 style={[styles.input, styles.expenseAmountInput, { color: themeColors.text }]}
                 value={expenseAmount}
                 onChangeText={setExpenseAmount}
-                placeholder="Сколько"
+                placeholder="Сумма (напр. 25,40)"
                 placeholderTextColor={themeColors.text + '80'}
                 keyboardType="numeric"
               />
@@ -176,18 +215,22 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
                 style={[styles.button, styles.addButton, { borderColor: themeColors.tint }]}
                 onPress={handleAddExpense}
               >
-                <ThemedText style={{ color: themeColors.tint }}>+</ThemedText>
+                <ThemedText style={{ color: themeColors.tint }}>
+                  <Text>+</Text>
+                </ThemedText>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={styles.section}>
-            <ThemedText>Накопления</ThemedText>
+            <ThemedText>
+              <Text>Накопления</Text>
+            </ThemedText>
             <TextInput
               style={[styles.input, { color: themeColors.text }]}
               value={savingsGoal}
               onChangeText={setSavingsGoal}
-              placeholder="Сумма для накоплений"
+              placeholder="Сумма для накоплений (напр. 500,00)"
               placeholderTextColor={themeColors.text + '80'}
               keyboardType="numeric"
             />
@@ -198,7 +241,7 @@ export function BudgetForm({ onClose, initialData }: BudgetFormProps) {
             onPress={handleSave}
           >
             <ThemedText style={{ color: colorScheme === 'dark' ? '#000' : '#fff' }}>
-              Сохранить
+              <Text>Сохранить</Text>
             </ThemedText>
           </TouchableOpacity>
         </View>

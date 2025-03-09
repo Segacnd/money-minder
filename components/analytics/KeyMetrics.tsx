@@ -9,13 +9,24 @@ import { MaterialIcons } from '@expo/vector-icons';
 interface KeyMetricsProps {
   expenses: Expense[];
   previousPeriodExpenses: Expense[];
+  startDate?: Date;
+  endDate?: Date;
 }
 
-export const KeyMetrics = ({ expenses, previousPeriodExpenses }: KeyMetricsProps) => {
+export const KeyMetrics = ({ expenses, previousPeriodExpenses, startDate, endDate }: KeyMetricsProps) => {
   const metrics = React.useMemo(() => {
     const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
     const previousTotal = previousPeriodExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-    const averagePerDay = total / 30; // Примерно за месяц
+    
+    // Расчет среднего расхода в день с учетом выбранного периода
+    let daysInPeriod = 30; // По умолчанию примерно за месяц
+    
+    if (startDate && endDate) {
+      const diffTime = Math.abs(endDate.getTime() - startDate.getTime());
+      daysInPeriod = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1; // Минимум 1 день
+    }
+    
+    const averagePerDay = total / daysInPeriod;
 
     // Находим самую большую категорию
     const categoryTotals = expenses.reduce((acc, expense) => {
@@ -35,7 +46,7 @@ export const KeyMetrics = ({ expenses, previousPeriodExpenses }: KeyMetricsProps
       topCategory,
       change,
     };
-  }, [expenses, previousPeriodExpenses]);
+  }, [expenses, previousPeriodExpenses, startDate, endDate]);
 
   return (
     <View style={styles.container}>
@@ -70,7 +81,7 @@ export const KeyMetrics = ({ expenses, previousPeriodExpenses }: KeyMetricsProps
 interface MetricCardProps {
   title: string;
   value: string;
-  icon: string;
+  icon: React.ComponentProps<typeof MaterialIcons>['name'];
   valueColor?: string;
 }
 

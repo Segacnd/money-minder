@@ -7,12 +7,12 @@ import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 
 export enum SortOption {
-  NEWEST = 'newest',
-  OLDEST = 'oldest',
-  HIGHEST_AMOUNT = 'highest_amount',
-  LOWEST_AMOUNT = 'lowest_amount',
-  CATEGORY_ASC = 'category_asc',
-  CATEGORY_DESC = 'category_desc',
+  NEWEST = 'date-desc',
+  OLDEST = 'date-asc',
+  HIGHEST_AMOUNT = 'amount-desc',
+  LOWEST_AMOUNT = 'amount-asc',
+  CATEGORY_ASC = 'category-asc',
+  CATEGORY_DESC = 'category-desc',
 }
 
 // Описания опций сортировки
